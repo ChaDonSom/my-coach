@@ -39,9 +39,10 @@ interface ChatMessage {
   text: string
 }
 
-interface SimilarThing {
-  text: string
-  noteId: number
+interface Link {
+  fromId: number
+  toId: number
+  strength: number
 }
 
 interface OpenAIResponse {
@@ -59,7 +60,7 @@ const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([])
   const [currentNote, setCurrentNote] = useState<Note | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>([{ sender: "AI", text: "What caught your eye today?" }])
-  const [similarThings, setSimilarThings] = useState<SimilarThing[]>([])
+  const [links, setLinks] = useState<Link[]>([])
   const [input, setInput] = useState("")
   const [showPrompts, setShowPrompts] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -82,6 +83,17 @@ const App: React.FC = () => {
         input: newNote.blocks.map((b) => b.content).join(" "),
       })
       newNote.embedding = embedding.data[0].embedding
+
+      // Suggest links
+      const newLinks = notes
+        .filter((note) => note.embedding && note.id !== newNote.id)
+        .map((note) => ({
+          fromId: newNote.id,
+          toId: note.id,
+          strength: cosineSimilarity(newNote.embedding!, note.embedding!),
+        }))
+        .filter((link) => link.strength > 0.8) // Threshold for suggestion
+      setLinks((prev) => [...prev, ...newLinks])
     } catch (error) {
       console.error("Embedding error:", error)
     }
@@ -89,7 +101,6 @@ const App: React.FC = () => {
     setNotes(currentNote ? notes.map((n) => (n.id === currentNote.id ? newNote : n)) : [...notes, newNote])
     setCurrentNote(newNote)
     setChat([...chat, { sender: "User", text: input }])
-    setSimilarThings([...similarThings, { text: `Related to: ${input.split(" ")[0]}`, noteId: newNote.id }])
 
     try {
       const response = await axios.post(
@@ -118,7 +129,7 @@ const App: React.FC = () => {
   }
 
   const handleNewNote = (): void => {
-    setCurrentNote(null) // Reset currentNote to force a new one on next send
+    setCurrentNote(null)
   }
 
   const handleSearch = async (): Promise<void> => {
@@ -165,7 +176,7 @@ const App: React.FC = () => {
             fullWidth
             value={input}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSend()}
             placeholder="Write a new block..."
             variant="outlined"
             multiline
@@ -199,7 +210,7 @@ const App: React.FC = () => {
             fullWidth
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
             placeholder="Search your notes..."
             variant="outlined"
             sx={{ mb: 2 }}
@@ -207,7 +218,12 @@ const App: React.FC = () => {
           {searchResults.length > 0 && (
             <List sx={{ mb: 2 }}>
               {searchResults.map((result) => (
-                <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
+                <ListItem
+                  key={result.note.id}
+                  component="div"
+                  sx={{ cursor: "pointer" }}
+                  onClick={() => setCurrentNote(result.note)}
+                >
                   <ListItemText
                     primary={result.note.title}
                     secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
@@ -216,7 +232,18 @@ const App: React.FC = () => {
               ))}
             </List>
           )}
-          <div style={{ height: "50vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
+          <Typography variant="subtitle1" sx={{ mt: 2 }}>
+            Chat
+          </Typography>
+          <div
+            style={{
+              height: "30vh",
+              overflowY: "auto",
+              border: "1px solid #ccc",
+              padding: "10px",
+              marginBottom: "16px",
+            }}
+          >
             {chat.map((msg, idx) => (
               <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
                 <CardContent>
@@ -226,13 +253,17 @@ const App: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
-            {similarThings.map((item, idx) => (
+          </div>
+          <Typography variant="subtitle1">Suggested Links</Typography>
+          <div style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
+            {links.map((link, idx) => (
               <Typography
                 key={idx}
                 sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-                onClick={() => setCurrentNote(notes.find((n) => n.id === item.noteId) || null)}
+                onClick={() => setCurrentNote(notes.find((n) => n.id === link.toId) || null)}
               >
-                {item.text}
+                {notes.find((n) => n.id === link.fromId)?.title} → {notes.find((n) => n.id === link.toId)?.title} (
+                {(link.strength * 100).toFixed(1)}%)
               </Typography>
             ))}
           </div>
@@ -250,7 +281,7 @@ const App: React.FC = () => {
           fullWidth
           value={searchQuery}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
           placeholder="Search your notes..."
           variant="outlined"
           sx={{ mb: 2 }}
@@ -258,7 +289,12 @@ const App: React.FC = () => {
         {searchResults.length > 0 && (
           <List sx={{ mb: 2 }}>
             {searchResults.map((result) => (
-              <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
+              <ListItem
+                key={result.note.id}
+                component="div"
+                sx={{ cursor: "pointer" }}
+                onClick={() => setCurrentNote(result.note)}
+              >
                 <ListItemText
                   primary={result.note.title}
                   secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
@@ -267,7 +303,12 @@ const App: React.FC = () => {
             ))}
           </List>
         )}
-        <div style={{ height: "30vh", overflowY: "auto" }}>
+        <Typography variant="subtitle1" sx={{ mt: 2 }}>
+          Chat
+        </Typography>
+        <div
+          style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px", marginBottom: "16px" }}
+        >
           {chat.map((msg, idx) => (
             <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
               <CardContent>
@@ -277,13 +318,17 @@ const App: React.FC = () => {
               </CardContent>
             </Card>
           ))}
-          {similarThings.map((item, idx) => (
+        </div>
+        <Typography variant="subtitle1">Suggested Links</Typography>
+        <div style={{ height: "10vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
+          {links.map((link, idx) => (
             <Typography
               key={idx}
               sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-              onClick={() => setCurrentNote(notes.find((n) => n.id === item.noteId) || null)}
+              onClick={() => setCurrentNote(notes.find((n) => n.id === link.toId) || null)}
             >
-              {item.text}
+              {notes.find((n) => n.id === link.fromId)?.title} → {notes.find((n) => n.id === link.toId)?.title} (
+              {(link.strength * 100).toFixed(1)}%)
             </Typography>
           ))}
         </div>
