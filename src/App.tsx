@@ -31,7 +31,7 @@ interface Note {
   id: number
   title: string
   blocks: Block[]
-  embedding?: number[] // Added for semantic search
+  embedding?: number[]
 }
 
 interface ChatMessage {
@@ -48,12 +48,11 @@ interface OpenAIResponse {
   choices: { message: { content: string } }[]
 }
 
-// Cosine similarity function for vector comparison
 const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0)
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0))
   const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0))
-  return dotProduct / (magA * magB) || 0 // Handle division by zero
+  return dotProduct / (magA * magB) || 0
 }
 
 const App: React.FC = () => {
@@ -68,7 +67,7 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<{ note: Note; similarity: number }[]>([])
 
   const apiKey = process.env.REACT_APP_OPENAI_API_KEY
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true }) // Browser flag for prototype
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
   const handleSend = async (): Promise<void> => {
     if (!input) return
@@ -77,7 +76,6 @@ const App: React.FC = () => {
       ? { ...currentNote, blocks: [...currentNote.blocks, newBlock] }
       : { id: Date.now(), title: input.slice(0, 20) + "...", blocks: [newBlock] }
 
-    // Embed the new note
     try {
       const embedding = await openai.embeddings.create({
         model: "text-embedding-ada-002",
@@ -119,6 +117,10 @@ const App: React.FC = () => {
     setInput("")
   }
 
+  const handleNewNote = (): void => {
+    setCurrentNote(null) // Reset currentNote to force a new one on next send
+  }
+
   const handleSearch = async (): Promise<void> => {
     if (!searchQuery) {
       setSearchResults([])
@@ -131,13 +133,13 @@ const App: React.FC = () => {
       })
       const queryVector = queryEmbedding.data[0].embedding
       const results = notes
-        .filter((note) => note.embedding) // Only notes with embeddings
+        .filter((note) => note.embedding)
         .map((note) => ({
           note,
           similarity: cosineSimilarity(note.embedding!, queryVector),
         }))
         .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 5) // Top 5 results
+        .slice(0, 5)
       setSearchResults(results)
     } catch (error) {
       console.error("Search error:", error)
@@ -156,27 +158,9 @@ const App: React.FC = () => {
           <Button onClick={() => setShowPrompts(!showPrompts)} sx={{ mb: 1 }}>
             {showPrompts ? "Hide Prompts" : "Show Prompts"}
           </Button>
-          <TextField
-            fullWidth
-            value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
-            placeholder="Search your notes..."
-            variant="outlined"
-            sx={{ mb: 2 }}
-          />
-          {searchResults.length > 0 && (
-            <List sx={{ mb: 2 }}>
-              {searchResults.map((result) => (
-                <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
-                  <ListItemText
-                    primary={result.note.title}
-                    secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
+          <Button variant="outlined" onClick={handleNewNote} sx={{ mb: 1, ml: 1 }}>
+            New Note
+          </Button>
           <TextField
             fullWidth
             value={input}
@@ -211,7 +195,28 @@ const App: React.FC = () => {
 
         <Grid item md={4} sx={{ display: { xs: "none", md: "block" } }}>
           <Typography variant="h6">Coach Chat & Suggestions</Typography>
-          <div style={{ height: "70vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
+          <TextField
+            fullWidth
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
+            placeholder="Search your notes..."
+            variant="outlined"
+            sx={{ mb: 2 }}
+          />
+          {searchResults.length > 0 && (
+            <List sx={{ mb: 2 }}>
+              {searchResults.map((result) => (
+                <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
+                  <ListItemText
+                    primary={result.note.title}
+                    secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+          <div style={{ height: "50vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
             {chat.map((msg, idx) => (
               <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
                 <CardContent>
@@ -225,7 +230,7 @@ const App: React.FC = () => {
               <Typography
                 key={idx}
                 sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-                onClick={() => alert("Link clicked")}
+                onClick={() => setCurrentNote(notes.find((n) => n.id === item.noteId) || null)}
               >
                 {item.text}
               </Typography>
@@ -241,7 +246,28 @@ const App: React.FC = () => {
         sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { height: "50vh", padding: "10px" } }}
       >
         <Typography variant="h6">Coach Chat & Suggestions</Typography>
-        <div style={{ height: "40vh", overflowY: "auto" }}>
+        <TextField
+          fullWidth
+          value={searchQuery}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
+          placeholder="Search your notes..."
+          variant="outlined"
+          sx={{ mb: 2 }}
+        />
+        {searchResults.length > 0 && (
+          <List sx={{ mb: 2 }}>
+            {searchResults.map((result) => (
+              <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
+                <ListItemText
+                  primary={result.note.title}
+                  secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        )}
+        <div style={{ height: "30vh", overflowY: "auto" }}>
           {chat.map((msg, idx) => (
             <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
               <CardContent>
@@ -255,7 +281,7 @@ const App: React.FC = () => {
             <Typography
               key={idx}
               sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-              onClick={() => alert("Link clicked")}
+              onClick={() => setCurrentNote(notes.find((n) => n.id === item.noteId) || null)}
             >
               {item.text}
             </Typography>
