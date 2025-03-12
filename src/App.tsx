@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react"
 import {
   Container,
   Grid,
@@ -16,80 +16,109 @@ import {
   List,
   ListItem,
   ListItemText,
-} from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import axios from "axios";
-import OpenAI from "openai";
+} from "@mui/material"
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
+import axios from "axios"
+import OpenAI from "openai"
 
 interface Block {
-  id: number;
-  content: string;
-  prompt: string;
-  embedding?: number[];
+  id: number
+  content: string
+  prompt: string
+  embedding?: number[]
 }
 
 interface Note {
-  id: number;
-  title: string;
-  blocks: Block[];
+  id: number
+  title: string
+  blocks: Block[]
 }
 
 interface ChatMessage {
-  sender: "AI" | "User";
-  text: string;
+  sender: "AI" | "User"
+  text: string
 }
 
 interface Link {
-  fromId: number; // Block ID
-  toId: number;   // Block ID
-  strength: number;
+  fromId: number // Block ID
+  toId: number // Block ID
+  strength: number
 }
 
 interface Interaction {
-  id: number;
-  timestamp: string;
-  type: "response";
-  content: string;
+  id: number
+  timestamp: string
+  type: "response"
+  content: string
 }
 
 interface OpenAIResponse {
-  choices: { message: { content: string } }[];
+  choices: { message: { content: string } }[]
 }
 
 const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
-  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-  const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
-  const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-  return dotProduct / (magA * magB) || 0;
-};
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0)
+  const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0))
+  const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0))
+  return dotProduct / (magA * magB) || 0
+}
 
 const App: React.FC = () => {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [currentNote, setCurrentNote] = useState<Note | null>(null);
-  const [chat, setChat] = useState<ChatMessage[]>([{ sender: "AI", text: "What caught your eye today?" }]);
-  const [links, setLinks] = useState<Link[]>([]);
-  const [interactions, setInteractions] = useState<Interaction[]>([]);
-  const [input, setInput] = useState("");
-  const [showPrompts, setShowPrompts] = useState(true);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ note: Note; similarity: number }[]>([]);
+  const [notes, setNotes] = useState<Note[]>([])
+  const [currentNote, setCurrentNote] = useState<Note | null>(null)
+  const [chat, setChat] = useState<ChatMessage[]>([])
+  const [links, setLinks] = useState<Link[]>([])
+  const [interactions, setInteractions] = useState<Interaction[]>([])
+  const [input, setInput] = useState("")
+  const [showPrompts, setShowPrompts] = useState(true)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<{ note: Note; similarity: number }[]>([])
 
-  const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+  const apiKey = process.env.REACT_APP_OPENAI_API_KEY
+
+  useEffect(() => {
+    const generateInitialQuestion = async () => {
+      try {
+        const response = await axios.post(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            model: "gpt-3.5-turbo",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You're a curious writing coach. Generate an engaging opening question to start a conversation about the user's day or thoughts. Keep it casual and inviting.",
+              },
+            ],
+            max_tokens: 50,
+          },
+          { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" } }
+        )
+        const aiQuestion = (response.data as OpenAIResponse).choices[0].message.content
+        setChat([{ sender: "AI", text: aiQuestion }])
+      } catch (error) {
+        console.error("Error generating initial question:", error)
+        setChat([{ sender: "AI", text: "What caught your eye today?" }])
+      }
+    }
+
+    generateInitialQuestion()
+  }, [apiKey])
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
   const handleSend = async (): Promise<void> => {
-    if (!input) return;
-    const newBlock: Block = { id: Date.now(), content: input, prompt: chat[chat.length - 1].text };
+    if (!input) return
+    const newBlock: Block = { id: Date.now(), content: input, prompt: chat[chat.length - 1].text }
     try {
       const embedding = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: newBlock.content,
-      });
-      newBlock.embedding = embedding.data[0].embedding;
+      })
+      newBlock.embedding = embedding.data[0].embedding
 
       // Suggest links at Block level
-      const allBlocks = notes.flatMap((n) => n.blocks);
+      const allBlocks = notes.flatMap((n) => n.blocks)
       const newLinks = allBlocks
         .filter((block) => block.embedding && block.id !== newBlock.id)
         .map((block) => ({
@@ -97,30 +126,33 @@ const App: React.FC = () => {
           toId: block.id,
           strength: cosineSimilarity(newBlock.embedding!, block.embedding!),
         }))
-        .filter((link) => link.strength > 0.8);
-      setLinks((prev) => [...prev, ...newLinks]);
+        .filter((link) => link.strength > 0.8)
+      setLinks((prev) => [...prev, ...newLinks])
     } catch (error) {
-      console.error("Embedding error:", error);
+      console.error("Embedding error:", error)
     }
 
     const newNote: Note = currentNote
       ? { ...currentNote, blocks: [...currentNote.blocks, newBlock] }
-      : { id: Date.now(), title: input.slice(0, 20) + "...", blocks: [newBlock] };
+      : { id: Date.now(), title: input.slice(0, 20) + "...", blocks: [newBlock] }
 
-    setNotes(currentNote ? notes.map((n) => (n.id === currentNote.id ? newNote : n)) : [...notes, newNote]);
-    setCurrentNote(newNote);
-    setChat([...chat, { sender: "User", text: input }]);
-    setInteractions((prev) => [...prev, { id: Date.now(), timestamp: new Date().toISOString(), type: "response", content: input }]);
+    setNotes(currentNote ? notes.map((n) => (n.id === currentNote.id ? newNote : n)) : [...notes, newNote])
+    setCurrentNote(newNote)
+    setChat([...chat, { sender: "User", text: input }])
+    setInteractions((prev) => [
+      ...prev,
+      { id: Date.now(), timestamp: new Date().toISOString(), type: "response", content: input },
+    ])
 
     // Context-aware AI question
-    const allBlocks = notes.flatMap((n) => n.blocks);
+    const allBlocks = notes.flatMap((n) => n.blocks)
     const contextBlocks = allBlocks
       .filter((b) => b.embedding)
       .map((b) => ({ block: b, similarity: cosineSimilarity(b.embedding!, newBlock.embedding!) }))
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 3) // Top 3 similar blocks
-      .map((b) => b.block.content);
-    const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\n");
+      .map((b) => b.block.content)
+    const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\n")
 
     try {
       const response = await axios.post(
@@ -130,54 +162,57 @@ const App: React.FC = () => {
           messages: [
             {
               role: "system",
-              content: "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\n" + context,
+              content:
+                "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\n" +
+                context,
             },
             { role: "user", content: input },
           ],
           max_tokens: 50,
         },
         { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" } }
-      );
-      const aiQuestion = (response.data as OpenAIResponse).choices[0].message.content;
-      setChat((prev) => [...prev, { sender: "AI", text: aiQuestion }]);
+      )
+      const aiQuestion = (response.data as OpenAIResponse).choices[0].message.content
+      setChat((prev) => [...prev, { sender: "AI", text: aiQuestion }])
     } catch (error) {
-      console.error(error);
-      setChat((prev) => [...prev, { sender: "AI", text: "What happened next?" }]);
+      console.error(error)
+      setChat((prev) => [...prev, { sender: "AI", text: "What happened next?" }])
     }
-    setInput("");
-  };
+    setInput("")
+  }
 
   const handleNewNote = (): void => {
-    setCurrentNote(null);
-  };
+    setCurrentNote(null)
+  }
 
   const handleSearch = async (): Promise<void> => {
     if (!searchQuery) {
-      setSearchResults([]);
-      return;
+      setSearchResults([])
+      return
     }
     try {
       const queryEmbedding = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: searchQuery,
-      });
-      const queryVector = queryEmbedding.data[0].embedding;
+      })
+      const queryVector = queryEmbedding.data[0].embedding
       const results = notes
         .map((note) => {
-          const noteEmbedding = note.blocks
-            .filter((b) => b.embedding)
-            .map((b) => cosineSimilarity(b.embedding!, queryVector))
-            .reduce((max, sim) => Math.max(max, sim), 0) || 0;
-          return { note, similarity: noteEmbedding };
+          const noteEmbedding =
+            note.blocks
+              .filter((b) => b.embedding)
+              .map((b) => cosineSimilarity(b.embedding!, queryVector))
+              .reduce((max, sim) => Math.max(max, sim), 0) || 0
+          return { note, similarity: noteEmbedding }
         })
         .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 5);
-      setSearchResults(results);
+        .slice(0, 5)
+      setSearchResults(results)
     } catch (error) {
-      console.error("Search error:", error);
-      setSearchResults([]);
+      console.error("Search error:", error)
+      setSearchResults([])
     }
-  };
+  }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 2 }}>
@@ -248,8 +283,18 @@ const App: React.FC = () => {
               ))}
             </List>
           )}
-          <Typography variant="subtitle1" sx={{ mt: 2 }}>Chat</Typography>
-          <div style={{ height: "30vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px", marginBottom: "2px" }}>
+          <Typography variant="subtitle1" sx={{ mt: 2 }}>
+            Chat
+          </Typography>
+          <div
+            style={{
+              height: "30vh",
+              overflowY: "auto",
+              border: "1px solid #ccc",
+              padding: "10px",
+              marginBottom: "2px",
+            }}
+          >
             {chat.map((msg, idx) => (
               <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
                 <CardContent>
@@ -263,17 +308,18 @@ const App: React.FC = () => {
           <Typography variant="subtitle1">Suggested Links</Typography>
           <div style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
             {links.map((link, idx) => {
-              const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId);
-              const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId);
+              const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId)
+              const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId)
               return (
                 <Typography
                   key={idx}
                   sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
                   onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b) => b.id === link.toId)) || null)}
                 >
-                  {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} ({(link.strength * 100).toFixed(1)}%)
+                  {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} (
+                  {(link.strength * 100).toFixed(1)}%)
                 </Typography>
-              );
+              )
             })}
           </div>
         </Grid>
@@ -307,8 +353,12 @@ const App: React.FC = () => {
             ))}
           </List>
         )}
-        <Typography variant="subtitle1" sx={{ mt: 2 }}>Chat</Typography>
-        <div style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px", marginBottom: "2px" }}>
+        <Typography variant="subtitle1" sx={{ mt: 2 }}>
+          Chat
+        </Typography>
+        <div
+          style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px", marginBottom: "2px" }}
+        >
           {chat.map((msg, idx) => (
             <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
               <CardContent>
@@ -322,17 +372,18 @@ const App: React.FC = () => {
         <Typography variant="subtitle1">Suggested Links</Typography>
         <div style={{ height: "10vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
           {links.map((link, idx) => {
-            const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId);
-            const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId);
+            const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId)
+            const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId)
             return (
               <Typography
                 key={idx}
                 sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
                 onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b) => b.id === link.toId)) || null)}
               >
-                {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} ({(link.strength * 100).toFixed(1)}%)
+                {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} ({(link.strength * 100).toFixed(1)}
+                %)
               </Typography>
-            );
+            )
           })}
         </div>
       </Drawer>
@@ -344,7 +395,7 @@ const App: React.FC = () => {
         Open Chat
       </Button>
     </Container>
-  );
-};
+  )
+}
 
-export default App;
+export default App
