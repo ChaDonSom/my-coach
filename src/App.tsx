@@ -1,28 +1,10 @@
 import React, { useState, useEffect } from "react"
-import {
-  Container,
-  Grid,
-  TextField,
-  Button,
-  Alert,
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Drawer,
-  List,
-  ListItem,
-  ListItemText,
-  Card,
-  CardContent,
-} from "@mui/material"
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
-import axios from "axios"
+import { Container, Grid, Button, Alert, Typography } from "@mui/material"
 import OpenAI from "openai"
-import NoteList from "./components/NoteList"
+import BlockEditor from "./components/BlockEditor"
 import CoachChat from "./components/CoachChat"
 import MobileCoachChat from "./components/MobileCoachChat"
-import { Block, Note, ChatMessage, Link, Interaction, OpenAIResponse } from "./types"
+import { Block, Note, ChatMessage, Link, Interaction } from "./types"
 
 const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0)
@@ -37,33 +19,31 @@ const App: React.FC = () => {
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [links, setLinks] = useState<Link[]>([])
   const [interactions, setInteractions] = useState<Interaction[]>([])
-  const [input, setInput] = useState("")
   const [showPrompts, setShowPrompts] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<{ note: Note; similarity: number }[]>([])
 
   const apiKey = process.env.REACT_APP_OPENAI_API_KEY
+  const openai = React.useMemo(() => new OpenAI({ apiKey, dangerouslyAllowBrowser: true }), [apiKey])
 
   useEffect(() => {
+    if (chat.length > 0) return
+
     const generateInitialQuestion = async () => {
       try {
-        const response = await axios.post(
-          "https://api.openai.com/v1/chat/completions",
-          {
-            model: "gpt-3.5-turbo",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You're a curious writing coach. Generate an engaging opening question to start a conversation about the user's day or thoughts. Keep it casual and inviting.",
-              },
-            ],
-            max_tokens: 50,
-          },
-          { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" } }
-        )
-        const aiQuestion = (response.data as OpenAIResponse).choices[0].message.content
+        const response = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You're a curious writing coach. Generate an engaging opening question to start a conversation about the user's day or thoughts. Keep it casual and inviting.",
+            },
+          ],
+          max_tokens: 50,
+        })
+        const aiQuestion = response.choices[0]?.message?.content || "What caught your eye today?"
         setChat([{ sender: "AI", text: aiQuestion }])
       } catch (error) {
         console.error("Error generating initial question:", error)
@@ -72,85 +52,81 @@ const App: React.FC = () => {
     }
 
     generateInitialQuestion()
-  }, [apiKey])
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+  }, [apiKey, openai])
 
-  const handleSend = async (): Promise<void> => {
-    if (!input) return
-    const newBlock: Block = { id: Date.now(), content: input, prompt: chat[chat.length - 1].text }
+  const handleBlockSubmit = async (content: string): Promise<void> => {
+    if (!content.trim()) return
+
     try {
       const embedding = await openai.embeddings.create({
         model: "text-embedding-ada-002",
-        input: newBlock.content,
+        input: content,
       })
-      newBlock.embedding = embedding.data[0].embedding
 
-      // Suggest links at Block level
+      // Update all blocks in the current note with their embeddings
       const allBlocks = notes.flatMap((n) => n.blocks)
       const newLinks = allBlocks
-        .filter((block) => block.embedding && block.id !== newBlock.id)
+        .filter((block) => block.embedding)
         .map((block) => ({
-          fromId: newBlock.id,
+          fromId: block.id,
           toId: block.id,
-          strength: cosineSimilarity(newBlock.embedding!, block.embedding!),
+          strength: cosineSimilarity(embedding.data[0].embedding, block.embedding!),
         }))
         .filter((link) => link.strength > 0.8)
       setLinks((prev) => [...prev, ...newLinks])
-    } catch (error) {
-      console.error("Embedding error:", error)
-    }
 
-    const newNote: Note = currentNote
-      ? { ...currentNote, blocks: [...currentNote.blocks, newBlock] }
-      : { id: Date.now(), title: input.slice(0, 20) + "...", blocks: [newBlock] }
+      // Add to chat and interactions
+      setChat((prev) => [...prev, { sender: "User", text: content }])
+      setInteractions((prev) => [
+        ...prev,
+        { id: Date.now(), timestamp: new Date().toISOString(), type: "response", content },
+      ])
 
-    setNotes(currentNote ? notes.map((n) => (n.id === currentNote.id ? newNote : n)) : [...notes, newNote])
-    setCurrentNote(newNote)
-    setChat([...chat, { sender: "User", text: input }])
-    setInteractions((prev) => [
-      ...prev,
-      { id: Date.now(), timestamp: new Date().toISOString(), type: "response", content: input },
-    ])
+      // Get context for AI response
+      const contextBlocks = allBlocks
+        .filter((b) => b.embedding)
+        .map((b) => ({ block: b, similarity: cosineSimilarity(embedding.data[0].embedding, b.embedding!) }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 3)
+        .map((b) => b.block.content)
+      const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\\n")
 
-    // Context-aware AI question
-    const allBlocks = notes.flatMap((n) => n.blocks)
-    const contextBlocks = allBlocks
-      .filter((b) => b.embedding)
-      .map((b) => ({ block: b, similarity: cosineSimilarity(b.embedding!, newBlock.embedding!) }))
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 3) // Top 3 similar blocks
-      .map((b) => b.block.content)
-    const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\\n")
-
-    try {
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\\n" +
-                context,
-            },
-            { role: "user", content: input },
-          ],
-          max_tokens: 50,
-        },
-        { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" } }
-      )
-      const aiQuestion = (response.data as OpenAIResponse).choices[0].message.content
+      // Generate AI response
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\\n" +
+              context,
+          },
+          { role: "user", content },
+        ],
+        max_tokens: 50,
+      })
+      const aiQuestion = response.choices[0]?.message?.content || "What happened next?"
       setChat((prev) => [...prev, { sender: "AI", text: aiQuestion }])
     } catch (error) {
-      console.error(error)
+      console.error("Error processing block:", error)
       setChat((prev) => [...prev, { sender: "AI", text: "What happened next?" }])
     }
-    setInput("")
   }
 
   const handleNewNote = (): void => {
-    setCurrentNote(null)
+    const newNote: Note = {
+      id: Date.now(),
+      title: "New Note",
+      blocks: [
+        {
+          id: Date.now(),
+          content: "",
+          prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
+        },
+      ],
+    }
+    setNotes([...notes, newNote])
+    setCurrentNote(newNote)
   }
 
   const handleSearch = async (): Promise<void> => {
@@ -196,21 +172,42 @@ const App: React.FC = () => {
           <Button variant="outlined" onClick={handleNewNote} sx={{ mb: 1, ml: 1 }}>
             New Note
           </Button>
-          <TextField
-            fullWidth
-            value={input}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSend()}
-            placeholder="Write a new block..."
-            variant="outlined"
-            multiline
-            rows={4}
-            sx={{ mb: 2 }}
+          <BlockEditor
+            blocks={currentNote?.blocks || []}
+            onBlocksChange={(newBlocks: Block[]) => {
+              if (currentNote) {
+                const updatedNote = { ...currentNote, blocks: newBlocks }
+                setNotes(notes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
+                setCurrentNote(updatedNote)
+              }
+            }}
+            onEnterPress={(blockId: number) => {
+              const newBlock: Block = {
+                id: Date.now(),
+                content: "",
+                prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
+              }
+
+              if (currentNote) {
+                const blockIndex = currentNote.blocks.findIndex((b) => b.id === blockId)
+                const updatedBlocks = [...currentNote.blocks]
+                updatedBlocks.splice(blockIndex + 1, 0, newBlock)
+                const updatedNote = { ...currentNote, blocks: updatedBlocks }
+                setNotes(notes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
+                setCurrentNote(updatedNote)
+              } else {
+                const newNote: Note = {
+                  id: Date.now(),
+                  title: "New Note",
+                  blocks: [newBlock],
+                }
+                setNotes([...notes, newNote])
+                setCurrentNote(newNote)
+              }
+            }}
+            onBlockSubmit={handleBlockSubmit}
+            currentPrompt={chat.length > 0 ? chat[chat.length - 1].text : ""}
           />
-          <Button variant="contained" onClick={handleSend} sx={{ mb: 2 }}>
-            Add
-          </Button>
-          <NoteList notes={notes} showPrompts={showPrompts} setCurrentNote={setCurrentNote} />
         </Grid>
 
         <Grid item md={4} sx={{ display: { xs: "none", md: "block" } }}>
