@@ -27,6 +27,13 @@ const App: React.FC = () => {
   const apiKey = process.env.REACT_APP_OPENAI_API_KEY
   const openai = React.useMemo(() => new OpenAI({ apiKey, dangerouslyAllowBrowser: true }), [apiKey])
 
+  // Create default note if none exists
+  useEffect(() => {
+    if (notes.length === 0) {
+      handleNewNote()
+    }
+  }, []) // Empty dependency array since we only want this on mount
+
   useEffect(() => {
     if (chat.length > 0) return
 

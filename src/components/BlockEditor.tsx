@@ -21,15 +21,20 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const draggedOverIndex = useRef<number | null>(null)
 
-  const [focusedBlockId, setFocusedBlockId] = useState<number | null>(null)
   const blockRefs = useRef<{ [key: number]: HTMLTextAreaElement | null }>({})
 
+  // Auto-focus new block when added.
+  const prevBlocksLength = useRef(blocks.length)
   useEffect(() => {
-    // Focus the newly created block
-    if (focusedBlockId && blockRefs.current[focusedBlockId]) {
-      blockRefs.current[focusedBlockId]?.focus()
+    if (prevBlocksLength.current > 0 && blocks.length > prevBlocksLength.current) {
+      // New block added: focus the newly added block after a brief delay
+      const newBlockId = blocks[blocks.length - 1].id
+      setTimeout(() => {
+        blockRefs.current[newBlockId]?.focus()
+      }, 150)
     }
-  }, [focusedBlockId])
+    prevBlocksLength.current = blocks.length
+  }, [blocks])
 
   // Handle content update for a specific block
   const handleContentChange = (blockId: number, newContent: string) => {
@@ -48,8 +53,6 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
       }
 
       onEnterPress(blockId)
-      // Focus will be set when the new block is created and rendered
-      setFocusedBlockId(Date.now())
     }
   }
 
@@ -131,10 +134,17 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
               "& .MuiInputBase-root": {
                 padding: "8px 12px",
                 lineHeight: "1.5em",
+                outline: "none !important",
+                border: "none",
+                borderRadius: "12px",
+                transition: "background-color 100ms ease-in-out",
               },
-              "& .MuiInputBase-input": {
-                overflowX: "hidden",
-                wordWrap: "break-word",
+              "& .MuiInputBase-root:hover": {
+                backgroundColor: "#fafafa", // Slightly gray, almost white
+                color: "#000",
+              },
+              "& .MuiOutlinedInput-notchedOutline": {
+                border: "none",
               },
             }}
           />
