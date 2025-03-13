@@ -40,6 +40,7 @@
 - Block Sync: onUpdate may lag with large block counts—needs optimization.
 - AI Trigger: Manual "Send" works, but auto-trigger on blur could be smoother.
 - Menu Styling: 6-dot menu is functional but visually basic (SVG placeholder).
+- Drag indicator is only shown when the block is hovered.
 
 ### Final App
 

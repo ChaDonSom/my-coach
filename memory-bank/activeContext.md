@@ -22,6 +22,7 @@
 
 - Polish UI: Style 6-dot menu (e.g., use MUI icons).
 - Improve block spacing and borders.
+- Polish UI: Only show the drag indicator when the block is hovered.
 - Optimize Sync: Debounce onUpdate to reduce re-renders.
 - Auto AI Trigger: Replace "Send" with on-blur or timer-based trigger.
 - Testing: Add 10+ blocks, verify performance. Test drag-and-drop with @hello-pangea/dnd.

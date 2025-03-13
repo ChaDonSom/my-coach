@@ -20,6 +20,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const draggedOverIndex = useRef<number | null>(null)
+  const [isHovered, setIsHovered] = useState(false)
 
   const blockRefs = useRef<{ [key: number]: HTMLTextAreaElement | null }>({})
 
@@ -98,6 +99,8 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
             marginBottom: "8px",
             opacity: draggedIndex === index ? 0.5 : 1,
           }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
           <IconButton
             size="small"
@@ -105,6 +108,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
               cursor: "grab",
               marginRight: "8px",
               "&:active": { cursor: "grabbing" },
+              visibility: isHovered ? "visible" : "hidden",
             }}
           >
             <DragIndicatorIcon />
