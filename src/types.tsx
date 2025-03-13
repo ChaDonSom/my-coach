@@ -3,6 +3,7 @@ export interface Block {
   content: string
   prompt: string
   embedding?: number[]
+  type?: "user" | "ai"
 }
 
 export interface Note {

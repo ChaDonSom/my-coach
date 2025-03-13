@@ -47,6 +47,10 @@ const App: React.FC = () => {
               content:
                 "You're a curious writing coach. Generate an engaging opening question to start a conversation about the user's day or thoughts. Keep it casual and inviting.",
             },
+            {
+              role: "system",
+              content: "Current time: " + new Date().toLocaleString(),
+            },
           ],
           max_tokens: 50,
         })
@@ -114,6 +118,24 @@ const App: React.FC = () => {
       })
       const aiQuestion = response.choices[0]?.message?.content || "What happened next?"
       setChat((prev) => [...prev, { sender: "AI", text: aiQuestion }])
+
+      // Create AI block after the user's block
+      if (currentNote) {
+        const updatedBlocks = [...currentNote.blocks]
+        const newAIBlock: Block = {
+          id: Date.now(),
+          content: aiQuestion,
+          prompt: "",
+          type: "ai",
+        }
+        // Find the last block and insert the AI block after it
+        const lastBlockIndex = updatedBlocks.length - 1
+        updatedBlocks.splice(lastBlockIndex + 1, 0, newAIBlock)
+
+        const updatedNote = { ...currentNote, blocks: updatedBlocks }
+        setNotes(notes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
+        setCurrentNote(updatedNote)
+      }
     } catch (error) {
       console.error("Error processing block:", error)
       setChat((prev) => [...prev, { sender: "AI", text: "What happened next?" }])
@@ -129,6 +151,7 @@ const App: React.FC = () => {
           id: Date.now(),
           content: "",
           prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
+          type: "user",
         },
       ],
     }
@@ -193,6 +216,7 @@ const App: React.FC = () => {
                 id: Date.now(),
                 content: "",
                 prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
+                type: "user",
               }
 
               if (currentNote) {

@@ -133,6 +133,11 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
                 lineHeight: "1.5em",
                 overflowX: "hidden",
                 wordWrap: "break-word",
+                ...(block.type === "ai" && {
+                  fontSize: "0.95em",
+                  fontStyle: "italic",
+                  color: "rgba(0, 0, 0, 0.8)", // Slightly lighter than default black
+                }),
               },
             }}
             sx={{
