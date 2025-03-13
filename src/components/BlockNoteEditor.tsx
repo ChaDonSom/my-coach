@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import { useCreateBlockNote } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/core/style.css"
@@ -22,6 +22,12 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   currentPrompt,
 }) => {
   const editor = useCreateBlockNote()
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  const handleUserStopTyping = useCallback(() => {
+    const content = editor._tiptapEditor.getJSON()
+    onBlockSubmit(JSON.stringify(content)) // Convert JSON to string
+  }, [editor, onBlockSubmit])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -37,6 +43,19 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
       window.removeEventListener("keydown", handleKeyDown)
     }
   }, [blocks, onEnterPress, onBlockSubmit])
+
+  useEffect(() => {
+    const handleKeyUp = () => {
+      if (typingTimeout) clearTimeout(typingTimeout)
+      setTypingTimeout(setTimeout(handleUserStopTyping, 2000)) // 2 seconds debounce
+    }
+
+    window.addEventListener("keyup", handleKeyUp)
+    return () => {
+      window.removeEventListener("keyup", handleKeyUp)
+      if (typingTimeout) clearTimeout(typingTimeout)
+    }
+  }, [handleUserStopTyping, typingTimeout])
 
   useEffect(() => {
     // Update editor content here if needed
