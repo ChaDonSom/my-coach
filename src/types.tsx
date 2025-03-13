@@ -4,6 +4,7 @@ export interface Block {
   prompt: string
   embedding?: number[]
   type?: "user" | "ai"
+  schema?: any // Add this line to allow schema property
 }
 
 export interface Note {

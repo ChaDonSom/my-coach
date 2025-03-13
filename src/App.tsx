@@ -5,6 +5,7 @@ import BlockNoteEditor from "./components/BlockNoteEditor"
 import CoachChat from "./components/CoachChat"
 import MobileCoachChat from "./components/MobileCoachChat"
 import { Block, Note, ChatMessage, Link, Interaction } from "./types"
+import aiResponseBlockSchema from "./components/aiResponseBlockSchema"
 
 const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0)
@@ -144,6 +145,7 @@ const App: React.FC = () => {
           content: aiQuestion,
           prompt: "",
           type: "ai",
+          schema: aiResponseBlockSchema,
         }
         // Find the last block and insert the AI block after it
         const lastBlockIndex = updatedBlocks.length - 1

@@ -5,6 +5,8 @@ import "@blocknote/core/style.css"
 import "@blocknote/mantine/style.css"
 import "@blocknote/core/fonts/inter.css"
 import { Block } from "../types"
+import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core"
+import aiResponseBlockSchema from "./aiResponseBlockSchema"
 
 interface BlockNoteEditorProps {
   blocks: Block[]
@@ -14,6 +16,15 @@ interface BlockNoteEditorProps {
   currentPrompt: string
 }
 
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+
+    // Add your own custom blocks:
+    aiResponseBlock: aiResponseBlockSchema,
+  },
+})
+
 const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   blocks,
   onBlocksChange,
@@ -21,7 +32,9 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   onBlockSubmit,
   currentPrompt,
 }) => {
-  const editor = useCreateBlockNote()
+  const editor = useCreateBlockNote({
+    schema,
+  })
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
 
   const handleUserStopTyping = useCallback(() => {
