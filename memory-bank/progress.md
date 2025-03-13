@@ -4,7 +4,8 @@
 
 ### Prototype
 
-- Functional block editor using TipTap, with AI integration, search, and links.
+- Basic BlockNote editor implemented with minimal configuration
+- Text editing capability with default BlockNote setup
 
 ### Final App
 
@@ -14,11 +15,13 @@
 
 ### Prototype
 
-- Polish UI: Style 6-dot menu (e.g., use MUI icons).
-- Improve block spacing and borders.
-- Optimize Sync: Debounce onUpdate to reduce re-renders.
-- Auto AI Trigger: Replace "Send" with on-blur or timer-based trigger.
-- Testing: Add 10+ blocks, verify performance. Test drag-and-drop with @hello-pangea/dnd.
+- Re-implement features with BlockNote in phases:
+  1. Block manipulation (create, delete, move)
+  2. AI integration and content processing
+  3. Search functionality
+  4. Block linking system
+  5. Advanced UI features (drag indicators, styling)
+- Performance testing with larger document sizes
 
 ### Final App
 
@@ -37,10 +40,10 @@
 
 ### Prototype
 
-- Block Sync: onUpdate may lag with large block counts—needs optimization.
-- AI Trigger: Manual "Send" works, but auto-trigger on blur could be smoother.
-- Menu Styling: 6-dot menu is functional but visually basic (SVG placeholder).
-- Drag indicator is only shown when the block is hovered.
+- Previous features (AI integration, search, links) temporarily disabled during BlockNote migration
+- Need to redesign some features to work with BlockNote's architecture
+- Type-safe integration with BlockNote needs improvement
+- Event handlers (content changes, Enter key, etc.) need to be re-implemented
 
 ### Final App
 

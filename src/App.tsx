@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Container, Grid, Button, Alert, Typography } from "@mui/material"
 import OpenAI from "openai"
-import BlockEditor from "./components/BlockEditor"
+import BlockNoteEditor from "./components/BlockNoteEditor"
 import CoachChat from "./components/CoachChat"
 import MobileCoachChat from "./components/MobileCoachChat"
 import { Block, Note, ChatMessage, Link, Interaction } from "./types"
@@ -27,12 +27,29 @@ const App: React.FC = () => {
   const apiKey = process.env.REACT_APP_OPENAI_API_KEY
   const openai = React.useMemo(() => new OpenAI({ apiKey, dangerouslyAllowBrowser: true }), [apiKey])
 
+  const handleNewNote = useCallback((): void => {
+    const newNote: Note = {
+      id: Date.now(),
+      title: "New Note",
+      blocks: [
+        {
+          id: Date.now(),
+          content: "",
+          prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
+          type: "user",
+        },
+      ],
+    }
+    setNotes([...notes, newNote])
+    setCurrentNote(newNote)
+  }, [chat, notes])
+
   // Create default note if none exists
   useEffect(() => {
     if (notes.length === 0) {
       handleNewNote()
     }
-  }, []) // Empty dependency array since we only want this on mount
+  }, [handleNewNote, notes.length]) // Add missing dependencies
 
   useEffect(() => {
     if (chat.length > 0) return
@@ -63,7 +80,7 @@ const App: React.FC = () => {
     }
 
     generateInitialQuestion()
-  }, [apiKey, openai])
+  }, [apiKey, openai, chat.length]) // Add missing dependency
 
   const handleBlockSubmit = async (content: string): Promise<void> => {
     if (!content.trim()) return
@@ -100,7 +117,7 @@ const App: React.FC = () => {
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, 3)
         .map((b) => b.block.content)
-      const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\\n")
+      const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\n")
 
       // Generate AI response
       const response = await openai.chat.completions.create({
@@ -109,7 +126,7 @@ const App: React.FC = () => {
           {
             role: "system",
             content:
-              "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\\n" +
+              "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\n" +
               context,
           },
           { role: "user", content },
@@ -140,23 +157,6 @@ const App: React.FC = () => {
       console.error("Error processing block:", error)
       setChat((prev) => [...prev, { sender: "AI", text: "What happened next?" }])
     }
-  }
-
-  const handleNewNote = (): void => {
-    const newNote: Note = {
-      id: Date.now(),
-      title: "New Note",
-      blocks: [
-        {
-          id: Date.now(),
-          content: "",
-          prompt: chat.length > 0 ? chat[chat.length - 1].text : "",
-          type: "user",
-        },
-      ],
-    }
-    setNotes([...notes, newNote])
-    setCurrentNote(newNote)
   }
 
   const handleSearch = async (): Promise<void> => {
@@ -202,7 +202,7 @@ const App: React.FC = () => {
           <Button variant="outlined" onClick={handleNewNote} sx={{ mb: 1, ml: 1 }}>
             New Note
           </Button>
-          <BlockEditor
+          <BlockNoteEditor
             blocks={currentNote?.blocks || []}
             onBlocksChange={(newBlocks: Block[]) => {
               if (currentNote) {

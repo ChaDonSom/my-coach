@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@blocknote/ariakit": "^0.25.2",
+    "@blocknote/core": "^0.25.2",
+    "@blocknote/mantine": "^0.25.2",
+    "@blocknote/react": "^0.25.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@hello-pangea/dnd": "^18.0.1",
@@ -25,7 +29,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "5.0.1",
-    "typescript": "^4.9.5",
+    "typescript": "^5.8.2",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
