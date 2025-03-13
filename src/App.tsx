@@ -1,60 +1,28 @@
-// App.tsx
 import React, { useState, useEffect } from "react"
 import {
   Container,
   Grid,
   TextField,
   Button,
-  Card,
-  CardContent,
+  Alert,
   Typography,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Alert,
   Drawer,
   List,
   ListItem,
   ListItemText,
+  Card,
+  CardContent,
 } from "@mui/material"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
 import axios from "axios"
 import OpenAI from "openai"
-
-interface Block {
-  id: number
-  content: string
-  prompt: string
-  embedding?: number[]
-}
-
-interface Note {
-  id: number
-  title: string
-  blocks: Block[]
-}
-
-interface ChatMessage {
-  sender: "AI" | "User"
-  text: string
-}
-
-interface Link {
-  fromId: number // Block ID
-  toId: number // Block ID
-  strength: number
-}
-
-interface Interaction {
-  id: number
-  timestamp: string
-  type: "response"
-  content: string
-}
-
-interface OpenAIResponse {
-  choices: { message: { content: string } }[]
-}
+import NoteList from "./components/NoteList"
+import CoachChat from "./components/CoachChat"
+import MobileCoachChat from "./components/MobileCoachChat"
+import { Block, Note, ChatMessage, Link, Interaction, OpenAIResponse } from "./types"
 
 const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0)
@@ -152,7 +120,7 @@ const App: React.FC = () => {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 3) // Top 3 similar blocks
       .map((b) => b.block.content)
-    const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\n")
+    const context = [...contextBlocks, ...interactions.slice(-3).map((i) => i.content)].join("\\n")
 
     try {
       const response = await axios.post(
@@ -163,7 +131,7 @@ const App: React.FC = () => {
             {
               role: "system",
               content:
-                "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\n" +
+                "You're a curious writing coach. Ask an engaging question based on this context, avoiding known details:\\n" +
                 context,
             },
             { role: "user", content: input },
@@ -242,151 +210,35 @@ const App: React.FC = () => {
           <Button variant="contained" onClick={handleSend} sx={{ mb: 2 }}>
             Add
           </Button>
-          <div style={{ height: "60vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
-            {notes.map((note) => (
-              <Accordion key={note.id} onChange={() => setCurrentNote(note)}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography>{note.title}</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  {note.blocks.map((block) => (
-                    <Typography key={block.id}>
-                      {showPrompts ? `${block.prompt} → ${block.content}` : block.content}
-                    </Typography>
-                  ))}
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </div>
+          <NoteList notes={notes} showPrompts={showPrompts} setCurrentNote={setCurrentNote} />
         </Grid>
 
         <Grid item md={4} sx={{ display: { xs: "none", md: "block" } }}>
-          <Typography variant="h6">Coach Chat & Suggestions</Typography>
-          <TextField
-            fullWidth
-            value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
-            placeholder="Search your notes..."
-            variant="outlined"
-            sx={{ mb: 2 }}
+          <CoachChat
+            chat={chat}
+            links={links}
+            notes={notes}
+            searchQuery={searchQuery}
+            searchResults={searchResults}
+            setSearchQuery={setSearchQuery}
+            handleSearch={handleSearch}
+            setCurrentNote={setCurrentNote}
           />
-          {searchResults.length > 0 && (
-            <List sx={{ mb: 2 }}>
-              {searchResults.map((result) => (
-                <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
-                  <ListItemText
-                    primary={result.note.title}
-                    secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-          <Typography variant="subtitle1" sx={{ mt: 2 }}>
-            Chat
-          </Typography>
-          <div
-            style={{
-              height: "30vh",
-              overflowY: "auto",
-              border: "1px solid #ccc",
-              padding: "10px",
-              marginBottom: "2px",
-            }}
-          >
-            {chat.map((msg, idx) => (
-              <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
-                <CardContent>
-                  <Typography>
-                    {msg.sender}: {msg.text}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <Typography variant="subtitle1">Suggested Links</Typography>
-          <div style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
-            {links.map((link, idx) => {
-              const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId)
-              const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId)
-              return (
-                <Typography
-                  key={idx}
-                  sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-                  onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b) => b.id === link.toId)) || null)}
-                >
-                  {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} (
-                  {(link.strength * 100).toFixed(1)}%)
-                </Typography>
-              )
-            })}
-          </div>
         </Grid>
       </Grid>
 
-      <Drawer
-        anchor="bottom"
-        open={mobileDrawerOpen}
-        onClose={() => setMobileDrawerOpen(false)}
-        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { height: "50vh", padding: "10px" } }}
-      >
-        <Typography variant="h6">Coach Chat & Suggestions</Typography>
-        <TextField
-          fullWidth
-          value={searchQuery}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
-          placeholder="Search your notes..."
-          variant="outlined"
-          sx={{ mb: 2 }}
-        />
-        {searchResults.length > 0 && (
-          <List sx={{ mb: 2 }}>
-            {searchResults.map((result) => (
-              <ListItem key={result.note.id} component="button" onClick={() => setCurrentNote(result.note)}>
-                <ListItemText
-                  primary={result.note.title}
-                  secondary={`Similarity: ${(result.similarity * 100).toFixed(1)}%`}
-                />
-              </ListItem>
-            ))}
-          </List>
-        )}
-        <Typography variant="subtitle1" sx={{ mt: 2 }}>
-          Chat
-        </Typography>
-        <div
-          style={{ height: "20vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px", marginBottom: "2px" }}
-        >
-          {chat.map((msg, idx) => (
-            <Card key={idx} sx={{ mb: 1, bgcolor: msg.sender === "AI" ? "#f5f5f5" : "#e3f2fd" }}>
-              <CardContent>
-                <Typography>
-                  {msg.sender}: {msg.text}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Typography variant="subtitle1">Suggested Links</Typography>
-        <div style={{ height: "10vh", overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
-          {links.map((link, idx) => {
-            const fromBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.fromId)
-            const toBlock = notes.flatMap((n) => n.blocks).find((b) => b.id === link.toId)
-            return (
-              <Typography
-                key={idx}
-                sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-                onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b) => b.id === link.toId)) || null)}
-              >
-                {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} ({(link.strength * 100).toFixed(1)}
-                %)
-              </Typography>
-            )
-          })}
-        </div>
-      </Drawer>
+      <MobileCoachChat
+        chat={chat}
+        links={links}
+        notes={notes}
+        searchQuery={searchQuery}
+        searchResults={searchResults}
+        setSearchQuery={setSearchQuery}
+        handleSearch={handleSearch}
+        setCurrentNote={setCurrentNote}
+        mobileDrawerOpen={mobileDrawerOpen}
+        setMobileDrawerOpen={setMobileDrawerOpen}
+      />
       <Button
         variant="outlined"
         onClick={() => setMobileDrawerOpen(true)}
