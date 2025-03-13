@@ -42,7 +42,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
     if (e.key === "Enter") {
       e.preventDefault() // Prevent default enter behavior
 
-      // If there's content, submit it first
+      // Submit content first
       if (content.trim()) {
         onBlockSubmit(content)
       }
@@ -54,9 +54,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
   }
 
   const handleBlur = (content: string) => {
-    if (content.trim()) {
-      onBlockSubmit(content)
-    }
+    // Placeholder for future blur handling if needed
   }
 
   const handleDragStart = (index: number) => {
@@ -117,18 +115,26 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
             placeholder="Write here..."
             variant="outlined"
             inputRef={(el) => (blockRefs.current[block.id] = el)}
+            multiline
+            minRows={1}
+            maxRows={Infinity}
             inputProps={{
               style: {
                 resize: "none",
-                overflow: "hidden",
                 minHeight: "1.5em",
                 lineHeight: "1.5em",
+                overflowX: "hidden",
+                wordWrap: "break-word",
               },
             }}
             sx={{
               "& .MuiInputBase-root": {
                 padding: "8px 12px",
                 lineHeight: "1.5em",
+              },
+              "& .MuiInputBase-input": {
+                overflowX: "hidden",
+                wordWrap: "break-word",
               },
             }}
           />
