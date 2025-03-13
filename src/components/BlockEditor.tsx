@@ -108,7 +108,8 @@ const BlockEditor: React.FC<BlockEditorProps> = ({
               cursor: "grab",
               marginRight: "8px",
               "&:active": { cursor: "grabbing" },
-              visibility: isHovered ? "visible" : "hidden",
+              transition: "opacity 100ms ease-in-out",
+              opacity: isHovered ? 1 : 0,
             }}
           >
             <DragIndicatorIcon />
