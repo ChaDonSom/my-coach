@@ -105,6 +105,7 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
       // Skip if this update was triggered by our external update
       const currentContent = JSON.stringify(editor.document)
       if (currentContent === lastExternalUpdate.current) return
+      if (isInternalUpdate.current) return
 
       isInternalUpdate.current = true
       const updatedBlocks = editor.document.map((block: any) => ({
@@ -129,23 +130,6 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
 
     const editorElement = editor.domElement
 
-    // Handle Enter key press
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        const selection = editor.getSelection()
-        if (!selection || !selection.blocks || selection.blocks.length === 0) return
-
-        const blockId = selection.blocks[0]?.id
-        if (!blockId) return
-
-        const numId = parseInt(blockId, 10)
-        if (isNaN(numId)) return
-
-        event.preventDefault()
-        onEnterPress(numId)
-      }
-    }
-
     // Handle typing with debounce
     const handleKeyUp = () => {
       if (typingTimeout) clearTimeout(typingTimeout)
@@ -161,12 +145,10 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
       )
     }
 
-    editorElement.addEventListener("keydown", handleKeyDown)
     editorElement.addEventListener("keyup", handleKeyUp)
 
     return () => {
       if (editor?.domElement) {
-        editor.domElement.removeEventListener("keydown", handleKeyDown)
         editor.domElement.removeEventListener("keyup", handleKeyUp)
       }
       if (typingTimeout) clearTimeout(typingTimeout)
