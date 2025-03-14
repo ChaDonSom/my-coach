@@ -19,7 +19,7 @@ interface BlockNoteEditorProps {
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
-    "ai-response": aiResponseBlockSchema, // Change from aiResponseBlock to ai-response
+    "ai-response": aiResponseBlockSchema,
   },
 })
 
@@ -28,7 +28,7 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Convert our app blocks to BlockNote blocks
-  const convertToBlockNoteBlocks = useCallback((): typeof editor.document => {
+  const convertToBlockNoteBlocks = useCallback(() => {
     if (!blocks || !Array.isArray(blocks)) {
       return []
     }
@@ -42,12 +42,12 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
             id: String(block.id),
             type: "ai-response" as const,
             props: {
-              content: block.content,
+              content: block.content, // Keep content in props for backup
               backgroundColor: "",
               textColor: "",
               textAlignment: "left" as const,
             },
-            content: undefined,
+            content: block.content ? [{ type: "text" as const, text: block.content, styles: {} }] : [], // Content array is valid now with "inline" content type
             children: [],
           }
         }
@@ -61,7 +61,7 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
         }
       })
       .filter((block): block is NonNullable<typeof block> => block !== null)
-  }, [blocks, editor])
+  }, [blocks])
 
   // Extract text content from BlockNote blocks
   const extractBlockContent = useCallback((block: any): string => {

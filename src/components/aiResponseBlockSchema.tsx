@@ -1,4 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react"
+import { StyledText } from "@blocknote/core"
 
 const aiResponseBlockSchema = createReactBlockSpec(
   {
@@ -12,20 +13,26 @@ const aiResponseBlockSchema = createReactBlockSpec(
       textColor: { type: "string", default: "" },
       textAlignment: { type: "string", default: "left" },
     },
-    content: "none",
+    content: "inline",
   },
   {
-    render: ({ block }) => (
-      <div
-        style={{
-          fontStyle: "italic",
-          color: "rgba(0, 0, 0, 0.8)",
-          padding: "8px 0",
-        }}
-      >
-        {block.props.content}
-      </div>
-    ),
+    render: ({ block }) => {
+      // Get text content from inline content if available, fallback to props
+      const textContent =
+        block.content?.find((item): item is StyledText<any> => item.type === "text")?.text || block.props.content
+
+      return (
+        <div
+          style={{
+            fontStyle: "italic",
+            color: "rgba(0, 0, 0, 0.8)",
+            padding: "8px 0",
+          }}
+        >
+          {textContent}
+        </div>
+      )
+    },
   }
 )
 
