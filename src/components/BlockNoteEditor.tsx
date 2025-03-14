@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, useRef } from "react"
 import { useCreateBlockNote } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/core/style.css"
@@ -26,6 +26,8 @@ const schema = BlockNoteSchema.create({
 const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChange, onEnterPress, onBlockSubmit }) => {
   const editor = useCreateBlockNote({ schema })
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const lastExternalUpdate = useRef<string>("")
+  const isInternalUpdate = useRef(false)
 
   // Convert our app blocks to BlockNote blocks
   const convertToBlockNoteBlocks = useCallback(() => {
@@ -42,12 +44,12 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
             id: String(block.id),
             type: "ai-response" as const,
             props: {
-              content: block.content, // Keep content in props for backup
+              content: block.content,
               backgroundColor: "",
               textColor: "",
               textAlignment: "left" as const,
             },
-            content: block.content ? [{ type: "text" as const, text: block.content, styles: {} }] : [], // Content array is valid now with "inline" content type
+            content: block.content ? [{ type: "text" as const, text: block.content, styles: {} }] : [],
             children: [],
           }
         }
@@ -79,72 +81,47 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
     return ""
   }, [])
 
-  const [isEditorUpdating, setIsEditorUpdating] = useState(false) // New flag
-
-  // Update editor content when blocks change
+  // Update editor content when blocks change externally
   useEffect(() => {
-    if (!editor || isEditorUpdating) return // Skip if editor is updating itself
-    setIsEditorUpdating(true) // Set flag before update
-    try {
-      const blockNoteBlocks = convertToBlockNoteBlocks()
-      if (blockNoteBlocks.length > 0) {
-        const currentBlocks = editor.document || []
-        if (JSON.stringify(blockNoteBlocks) !== JSON.stringify(currentBlocks)) {
-          editor.replaceBlocks(currentBlocks, blockNoteBlocks.filter(Boolean))
-          setIsEditorUpdating(false) // Reset flag after update
-        }
-      }
-    } catch (e) {
-      console.error("Error updating editor blocks:", e)
-      setIsEditorUpdating(false)
+    if (!editor || !blocks) return
+
+    const currentContent = JSON.stringify(editor.document)
+    const newContent = JSON.stringify(convertToBlockNoteBlocks())
+
+    // Only update if content actually changed and it wasn't our own update
+    if (currentContent !== newContent && !isInternalUpdate.current) {
+      lastExternalUpdate.current = newContent
+      editor.replaceBlocks(editor.document, convertToBlockNoteBlocks())
     }
-  }, [blocks, convertToBlockNoteBlocks, editor, isEditorUpdating])
+  }, [blocks, convertToBlockNoteBlocks, editor])
 
   // Handle editor content changes
   useEffect(() => {
     if (!editor) return
 
     const handleUpdate = () => {
-      const editorBlocks = editor.document
-      if (!editorBlocks || !Array.isArray(editorBlocks) || !blocks || !Array.isArray(blocks)) {
-        return // Prevent issues with null/undefined values
-      }
+      if (!editor.document) return
 
-      const updatedBlocks = blocks.map((block, index) => {
-        if (!block) return block // Skip null blocks
+      // Skip if this update was triggered by our external update
+      const currentContent = JSON.stringify(editor.document)
+      if (currentContent === lastExternalUpdate.current) return
 
-        const editorBlock =
-          editorBlocks.find((b) => b && b.id === String(block.id)) ||
-          (index < editorBlocks.length ? editorBlocks[index] : null)
+      isInternalUpdate.current = true
+      const updatedBlocks = editor.document.map((block: any) => ({
+        id: parseInt(block.id, 10),
+        content: extractBlockContent(block),
+        prompt: "",
+        type: block.type === "ai-response" ? ("ai" as const) : ("user" as const),
+      }))
 
-        if (!editorBlock) return block
-
-        return {
-          ...block,
-          content: extractBlockContent(editorBlock),
-          type: editorBlock.type === "ai-response" ? "ai" : "user",
-        } as Block // Ensure type safety with explicit cast
-      })
-
-      const areBlocksEqual =
-        updatedBlocks.length === blocks.length &&
-        updatedBlocks.every((block, index) => {
-          const oldBlock = blocks[index]
-          return block?.id === oldBlock?.id && block?.content === oldBlock?.content && block?.type === oldBlock?.type
-        })
-
-      if (!areBlocksEqual) {
-        onBlocksChange(updatedBlocks)
-      }
+      onBlocksChange(updatedBlocks)
+      isInternalUpdate.current = false
     }
 
     // Add event listener for content changes
-    editor.onChange(handleUpdate)
-
-    return () => {
-      // Cleanup handled by BlockNote internally
-    }
-  }, [blocks, editor, extractBlockContent, onBlocksChange])
+    const unsubscribe = editor.onChange(handleUpdate)
+    return unsubscribe
+  }, [editor, extractBlockContent, onBlocksChange])
 
   // Set up key handlers and typing detection
   useEffect(() => {
@@ -176,22 +153,11 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
       setTypingTimeout(
         setTimeout(async () => {
           if (!editor) return
-          console.log("Typing detected")
-
-          const textCursorPosition = editor.getTextCursorPosition()
-          console.log("selection :", textCursorPosition)
-          if (!textCursorPosition || !textCursorPosition.block) return
-
-          const blockId = textCursorPosition.block?.id
-          if (!blockId) return
-
-          const block = editor.getBlock(blockId)
-          console.log("block :", block)
-          if (!block) return
-
           const content = await editor.blocksToMarkdownLossy(editor.document)
-          onBlockSubmit(content)
-        }, 2000)
+          if (content.trim()) {
+            onBlockSubmit(content)
+          }
+        }, 3000)
       )
     }
 
@@ -205,7 +171,7 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
       }
       if (typingTimeout) clearTimeout(typingTimeout)
     }
-  }, [editor, extractBlockContent, onBlockSubmit, onEnterPress, typingTimeout])
+  }, [editor, onBlockSubmit, onEnterPress, typingTimeout])
 
   return <BlockNoteView editor={editor} />
 }

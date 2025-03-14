@@ -63,13 +63,15 @@ const App: React.FC = () => {
           <Button variant="outlined" onClick={handleNewNote} sx={{ mb: 1, ml: 1 }}>
             New Note
           </Button>
-          <BlockNoteEditor
-            blocks={currentNote?.blocks || []}
-            onBlocksChange={updateNoteBlocks}
-            onEnterPress={handleEnterPress}
-            onBlockSubmit={handleBlockSubmit}
-            currentPrompt={chat.length > 0 ? chat[chat.length - 1].text : ""}
-          />
+          {currentNote && (
+            <BlockNoteEditor
+              blocks={currentNote.blocks}
+              onBlocksChange={updateNoteBlocks}
+              onEnterPress={handleEnterPress}
+              onBlockSubmit={handleBlockSubmit}
+              currentPrompt={chat.length > 0 ? chat[chat.length - 1].text : ""}
+            />
+          )}
         </Grid>
 
         <Grid item md={4} sx={{ display: { xs: "none", md: "block" } }}>

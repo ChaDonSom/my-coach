@@ -74,21 +74,20 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
 
       // Create AI block after the user's block
       if (currentNote) {
-        const updatedBlocks = [...currentNote.blocks]
         const newAIBlock: Block = {
           id: Date.now(),
           content: aiQuestion,
           prompt: "",
           type: "ai",
-          schema: { ...aiResponseBlockSchema, props: { content: aiQuestion } }, // Set content in props
+          schema: { ...aiResponseBlockSchema, props: { content: aiQuestion } },
         }
 
-        // Insert the AI block after the last block
-        const lastBlockIndex = updatedBlocks.length - 1
-        updatedBlocks.splice(lastBlockIndex + 1, 0, newAIBlock)
+        // Create new blocks array to ensure proper change detection
+        const updatedBlocks = [...currentNote.blocks, newAIBlock]
 
+        // Use functional updates to ensure we have the latest state
         const updatedNote = { ...currentNote, blocks: updatedBlocks }
-        setNotes(notes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
+        setNotes((prevNotes) => prevNotes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
         setCurrentNote(updatedNote)
       }
     } catch (error) {

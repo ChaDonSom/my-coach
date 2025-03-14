@@ -26,7 +26,10 @@ const aiResponseBlockSchema = createReactBlockSpec(
           style={{
             fontStyle: "italic",
             color: "rgba(0, 0, 0, 0.8)",
-            padding: "8px 0",
+            padding: "8px 12px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "8px",
+            margin: "4px 0",
           }}
         >
           {textContent}
