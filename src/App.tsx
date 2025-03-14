@@ -25,7 +25,7 @@ const App: React.FC = () => {
     handleEnterPress,
     setCurrentNote,
     setSearchQuery,
-    handleSearch
+    handleSearch,
   } = useAppStore()
 
   // Initialize OpenAI client

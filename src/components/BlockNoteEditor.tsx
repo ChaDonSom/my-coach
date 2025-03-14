@@ -24,12 +24,7 @@ const schema = BlockNoteSchema.create({
   },
 })
 
-const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ 
-  blocks, 
-  onBlocksChange, 
-  onEnterPress, 
-  onBlockSubmit 
-}) => {
+const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChange, onEnterPress, onBlockSubmit }) => {
   const editor = useCreateBlockNote({ schema })
   const isInternalUpdate = useRef(false)
   const lastExternalUpdate = useRef<string>("")
