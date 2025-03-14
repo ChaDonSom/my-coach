@@ -28,11 +28,17 @@
 
 ## Recent Changes
 
-- Refactored `App.tsx` into smaller components (`NoteList`, `CoachChat`, `MobileCoachChat`) to improve maintainability and reduce file size.
-- Created `src/types.tsx` to define shared interfaces (`Block`, `Note`, `ChatMessage`, `Link`, `Interaction`, `OpenAIResponse`, `CoachChatProps`, `MobileCoachChatProps`).
-- Updated all components to import interfaces from `src/types.tsx`.
-- Updated `BlockNoteEditor.tsx` to handle Enter key press for creating new blocks and submitting block content to AI.
-- Updated `BlockNoteEditor.tsx` to use `BlockNoteView` and `useCreateBlockNote` from the latest BlockNote documentation.
+- Refactored `App.tsx` from 241 lines down to under 100 lines by extracting functionality into separate utilities and hooks:
+  - Created `src/utils/similarity.ts` for the cosineSimilarity function
+  - Created `src/services/openAIService.ts` for AI-related functionality
+  - Created custom hooks in `src/hooks/useNotes.tsx` and `src/hooks/useSearch.tsx`
+- Fixed TypeScript errors across the application, particularly in:
+  - Properly typing the chat state setter function in useNotes hook
+  - Providing proper type definitions for parameters in utility functions
+  - Ensuring consistency between component props and their usage
+- Enhanced code organization by separating concerns:
+  - App.tsx now focuses on layout and component coordination
+  - Business logic moved to appropriate service files and custom hooks
 
 ## Next Steps
 
@@ -65,6 +71,7 @@
 
 ## Active Decisions and Considerations
 
-- Refactored `App.tsx` into smaller components (`NoteList`, `CoachChat`, `MobileCoachChat`) to improve maintainability and reduce file size.
-- Created `src/types.tsx` to define shared interfaces (`Block`, `Note`, `ChatMessage`, `Link`, `Interaction`, `OpenAIResponse`, `CoachChatProps`, `MobileCoachChatProps`).
-- Updated all components to import interfaces from `src/types.tsx`.
+- Adopted a modular approach with custom hooks to manage complex state and logic
+- Applied separation of concerns pattern by moving specific functionality to dedicated files
+- Ensured TypeScript type safety throughout the application to catch potential errors early
+- Focused on maintainability through smaller, focused components and utility functions

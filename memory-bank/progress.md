@@ -6,6 +6,12 @@
 
 - Basic BlockNote editor implemented with minimal configuration
 - Text editing capability with default BlockNote setup
+- Initial AI integration with OpenAI for generating questions
+- Core functionality to create and manage notes and blocks
+- Modular code structure with separation of concerns:
+  - Custom hooks for note management and search functionality
+  - OpenAI service for AI-related operations
+  - Utility functions for operations like similarity calculations
 
 ### Final App
 
@@ -33,8 +39,10 @@
 
 ## Current Status
 
-- Describe the current status of the project.
-- Include any relevant metrics or milestones.
+- App.tsx has been successfully refactored from 241 lines to under 100 lines
+- Type safety has been improved across the application
+- Code architecture follows best practices with separation of concerns
+- Application functionality remains intact while being more maintainable
 
 ## Known Issues
 
@@ -52,5 +60,11 @@
 
 ## Refactoring
 
-- `App.tsx` has been refactored to be more modular and maintainable.
-- All type errors have been resolved.
+- App.tsx has been successfully refactored to be more modular:
+  - Extracted cosineSimilarity function to utils/similarity.ts
+  - Moved OpenAI functionality to services/openAIService.ts
+  - Created custom hooks for notes (useNotes.tsx) and search (useSearch.tsx)
+- All TypeScript type errors have been resolved:
+  - Added proper typing for state setter functions
+  - Ensured consistency in props interfaces
+  - Fixed generic type issues in custom hooks

@@ -19,60 +19,178 @@ interface BlockNoteEditorProps {
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
-
-    // Add your own custom blocks:
     aiResponseBlock: aiResponseBlockSchema,
   },
 })
 
-const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
-  blocks,
-  onBlocksChange,
-  onEnterPress,
-  onBlockSubmit,
-  currentPrompt,
-}) => {
-  const editor = useCreateBlockNote({
-    schema,
-  })
+const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChange, onEnterPress, onBlockSubmit }) => {
+  const editor = useCreateBlockNote({ schema })
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
 
-  const handleUserStopTyping = useCallback(() => {
-    const content = editor._tiptapEditor.getJSON()
-    onBlockSubmit(JSON.stringify(content)) // Convert JSON to string
-  }, [editor, onBlockSubmit])
+  // Convert our app blocks to BlockNote blocks
+  const convertToBlockNoteBlocks = useCallback((): typeof editor.document => {
+    if (!blocks || !Array.isArray(blocks)) {
+      return [] // Return empty array if blocks is null or not an array
+    }
 
+    return blocks
+      .map((block) => {
+        if (!block) return null // Skip null/undefined blocks
+
+        if (block.type === "ai") {
+          return {
+            id: String(block.id),
+            type: "ai-response" as const,
+            props: { content: block.content || "", backgroundColor: "", textColor: "", textAlignment: "left" as const },
+            content: undefined, // No content for AI response block
+            children: [],
+          }
+        }
+
+        return {
+          id: String(block.id),
+          type: "paragraph" as const,
+          props: { backgroundColor: "", textColor: "", textAlignment: "left" as const },
+          content: block.content ? [{ type: "text" as const, text: block.content, styles: {} }] : [],
+          children: [],
+        }
+      })
+      .filter((block): block is NonNullable<typeof block> => block !== null) // Type guard to filter out null values
+  }, [blocks, editor])
+
+  // Extract text content from BlockNote blocks
+  const extractBlockContent = useCallback((block: any): string => {
+    if (!block) return ""
+
+    if (block.type === "ai-response") {
+      return block.props?.content || ""
+    } else if (Array.isArray(block.content)) {
+      return block.content
+        .filter((item: any) => item?.type === "text")
+        .map((item: any) => item?.text || "")
+        .join("")
+    }
+
+    return ""
+  }, [])
+
+  const [isEditorUpdating, setIsEditorUpdating] = useState(false) // New flag
+
+  // Update editor content when blocks change
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Enter") {
-        const lastBlock = blocks[blocks.length - 1]
-        onEnterPress(lastBlock.id)
-        onBlockSubmit(lastBlock.content)
+    if (!editor || isEditorUpdating) return // Skip if editor is updating itself
+    setIsEditorUpdating(true) // Set flag before update
+    try {
+      const blockNoteBlocks = convertToBlockNoteBlocks()
+      if (blockNoteBlocks.length > 0) {
+        const currentBlocks = editor.document || []
+        if (JSON.stringify(blockNoteBlocks) !== JSON.stringify(currentBlocks)) {
+          editor.replaceBlocks(currentBlocks, blockNoteBlocks.filter(Boolean))
+          setIsEditorUpdating(false) // Reset flag after update
+        }
+      }
+    } catch (e) {
+      console.error("Error updating editor blocks:", e)
+      setIsEditorUpdating(false)
+    }
+  }, [blocks, convertToBlockNoteBlocks, editor, isEditorUpdating])
+
+  // Handle editor content changes
+  useEffect(() => {
+    if (!editor) return
+
+    const handleUpdate = () => {
+      const editorBlocks = editor.document
+      if (!editorBlocks || !Array.isArray(editorBlocks) || !blocks || !Array.isArray(blocks)) {
+        return // Prevent issues with null/undefined values
+      }
+
+      const updatedBlocks = blocks.map((block, index) => {
+        if (!block) return block // Skip null blocks
+
+        const editorBlock =
+          editorBlocks.find((b) => b && b.id === String(block.id)) ||
+          (index < editorBlocks.length ? editorBlocks[index] : null)
+
+        if (!editorBlock) return block
+
+        return {
+          ...block,
+          content: extractBlockContent(editorBlock),
+          type: editorBlock.type === "ai-response" ? "ai" : "user",
+        } as Block // Ensure type safety with explicit cast
+      })
+
+      if (JSON.stringify(updatedBlocks) !== JSON.stringify(blocks)) {
+        onBlocksChange(updatedBlocks)
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [blocks, onEnterPress, onBlockSubmit])
+    // Add event listener for content changes
+    const unsubscribe = editor.onChange(handleUpdate)
 
+    return () => {
+      // No explicit unsubscribe method needed
+    }
+  }, [blocks, editor, extractBlockContent, onBlocksChange])
+
+  // Set up key handlers and typing detection
   useEffect(() => {
+    if (!editor?.domElement) return
+
+    const editorElement = editor.domElement
+
+    // Handle Enter key press
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        const selection = editor.getSelection()
+        if (!selection || !selection.blocks || selection.blocks.length === 0) return
+
+        const blockId = selection.blocks[0]?.id
+        if (!blockId) return
+
+        const numId = parseInt(blockId, 10)
+        if (isNaN(numId)) return
+
+        event.preventDefault()
+        onEnterPress(numId)
+      }
+    }
+
+    // Handle typing with debounce
     const handleKeyUp = () => {
       if (typingTimeout) clearTimeout(typingTimeout)
-      setTypingTimeout(setTimeout(handleUserStopTyping, 2000)) // 2 seconds debounce
+
+      setTypingTimeout(
+        setTimeout(() => {
+          if (!editor) return
+
+          const selection = editor.getSelection()
+          if (!selection || !selection.blocks || selection.blocks.length === 0) return
+
+          const blockId = selection.blocks[0]?.id
+          if (!blockId) return
+
+          const block = editor.getBlock(blockId)
+          if (!block) return
+
+          const content = extractBlockContent(block)
+          onBlockSubmit(content)
+        }, 2000)
+      )
     }
 
-    window.addEventListener("keyup", handleKeyUp)
+    editorElement.addEventListener("keydown", handleKeyDown)
+    editorElement.addEventListener("keyup", handleKeyUp)
+
     return () => {
-      window.removeEventListener("keyup", handleKeyUp)
+      if (editor?.domElement) {
+        editor.domElement.removeEventListener("keydown", handleKeyDown)
+        editor.domElement.removeEventListener("keyup", handleKeyUp)
+      }
       if (typingTimeout) clearTimeout(typingTimeout)
     }
-  }, [handleUserStopTyping, typingTimeout])
-
-  useEffect(() => {
-    // Update editor content here if needed
-  }, [blocks, editor])
+  }, [editor, extractBlockContent, onBlockSubmit, onEnterPress, typingTimeout])
 
   return <BlockNoteView editor={editor} />
 }
