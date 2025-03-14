@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import React, { useEffect, useRef } from "react"
 import { Container, Grid, Alert, Typography } from "@mui/material"
 import BlockNoteEditor from "./components/BlockNoteEditor"
 import CoachChat from "./components/CoachChat"
@@ -17,17 +17,21 @@ const App: React.FC = () => {
   }, [setOpenAI])
 
   // Generate initial AI question
+  const startedAinitialQuestion = useRef(false)
   useEffect(() => {
-    if (chat.length > 0) return
+    ;(async () => {
+      if (chat.length > 0 || startedAinitialQuestion.current) return
+      startedAinitialQuestion.current = true
 
-    const initQuestion = async () => {
-      const openai = createOpenAIClient()
-      const aiQuestion = await generateInitialQuestion(openai)
-      setChat([{ sender: "AI", text: aiQuestion }])
-    }
+      const initQuestion = async () => {
+        const openai = createOpenAIClient()
+        const aiQuestion = await generateInitialQuestion(openai)
+        setChat([{ sender: "AI", text: aiQuestion }])
+      }
 
-    initQuestion()
-  }, [chat.length, setChat])
+      await initQuestion()
+    })()
+  }, [chat.length, setChat, startedAinitialQuestion])
 
   const handleBlockSubmit = async (content: string) => {
     if (!content.trim()) return ""
