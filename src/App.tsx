@@ -1,53 +1,58 @@
-import React, { useState, useEffect } from "react"
+import React, { useEffect } from "react"
 import { Container, Grid, Button, Alert, Typography } from "@mui/material"
 import BlockNoteEditor from "./components/BlockNoteEditor"
 import CoachChat from "./components/CoachChat"
 import MobileCoachChat from "./components/MobileCoachChat"
-import { ChatMessage } from "./types"
 import { createOpenAIClient, generateInitialQuestion } from "./services/openAIService"
-import { useNotes } from "./hooks/useNotes"
-import { useSearch } from "./hooks/useSearch"
+import { useAppStore } from "./store/appStore"
 
 const App: React.FC = () => {
-  const [chat, setChat] = useState<ChatMessage[]>([])
-  const [showPrompts, setShowPrompts] = useState(true)
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false)
+  const [showPrompts, setShowPrompts] = React.useState(true)
 
-  // Initialize OpenAI client
-  const openai = React.useMemo(() => createOpenAIClient(), [])
-
-  // Custom hooks
   const {
     notes,
     currentNote,
+    chat,
     links,
+    searchQuery,
+    searchResults,
+    setOpenAI,
+    setChat,
     handleNewNote,
     handleBlockSubmit,
     updateNoteBlocks,
     handleEnterPress,
     setCurrentNote,
-  } = useNotes(openai, chat, setChat)
+    setSearchQuery,
+    handleSearch
+  } = useAppStore()
 
-  const { searchQuery, setSearchQuery, searchResults, handleSearch } = useSearch(openai, notes)
+  // Initialize OpenAI client
+  useEffect(() => {
+    const openai = createOpenAIClient()
+    setOpenAI(openai)
+  }, [setOpenAI])
 
   // Create default note if none exists
   useEffect(() => {
     if (notes.length === 0) {
       handleNewNote()
     }
-  }, [handleNewNote, notes.length])
+  }, [notes.length, handleNewNote])
 
   // Generate initial AI question
   useEffect(() => {
     if (chat.length > 0) return
 
     const initQuestion = async () => {
+      const openai = createOpenAIClient()
       const aiQuestion = await generateInitialQuestion(openai)
       setChat([{ sender: "AI", text: aiQuestion }])
     }
 
     initQuestion()
-  }, [openai, chat.length])
+  }, [chat.length, setChat])
 
   return (
     <Container maxWidth="lg" sx={{ mt: 2 }}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react"
+import React, { useEffect, useCallback, useRef } from "react"
 import { useCreateBlockNote } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/core/style.css"
@@ -7,6 +7,7 @@ import "@blocknote/core/fonts/inter.css"
 import { Block } from "../types"
 import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core"
 import aiResponseBlockSchema from "./aiResponseBlockSchema"
+import { debounce } from "lodash"
 
 interface BlockNoteEditorProps {
   blocks: Block[]
@@ -23,17 +24,19 @@ const schema = BlockNoteSchema.create({
   },
 })
 
-const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChange, onEnterPress, onBlockSubmit }) => {
+const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ 
+  blocks, 
+  onBlocksChange, 
+  onEnterPress, 
+  onBlockSubmit 
+}) => {
   const editor = useCreateBlockNote({ schema })
-  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
-  const lastExternalUpdate = useRef<string>("")
   const isInternalUpdate = useRef(false)
+  const lastExternalUpdate = useRef<string>("")
 
-  // Convert our app blocks to BlockNote blocks
+  // Convert app blocks to BlockNote blocks
   const convertToBlockNoteBlocks = useCallback(() => {
-    if (!blocks || !Array.isArray(blocks)) {
-      return []
-    }
+    if (!blocks || !Array.isArray(blocks)) return []
 
     return blocks
       .map((block) => {
@@ -88,74 +91,82 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
     const currentContent = JSON.stringify(editor.document)
     const newContent = JSON.stringify(convertToBlockNoteBlocks())
 
-    // Only update if content actually changed and it wasn't our own update
     if (currentContent !== newContent && !isInternalUpdate.current) {
       lastExternalUpdate.current = newContent
       editor.replaceBlocks(editor.document, convertToBlockNoteBlocks())
     }
   }, [blocks, convertToBlockNoteBlocks, editor])
 
-  // Handle editor content changes
-  useEffect(() => {
-    if (!editor) return
-
-    const handleUpdate = () => {
-      if (!editor.document) return
-
-      // Skip if this update was triggered by our external update
-      const currentContent = JSON.stringify(editor.document)
-      if (currentContent === lastExternalUpdate.current) return
+  // Debounced update handler with proper cleanup
+  const debouncedUpdate = useCallback(
+    debounce((newDocument: any) => {
       if (isInternalUpdate.current) return
 
       isInternalUpdate.current = true
-      const updatedBlocks = editor.document.map((block: any) => ({
+      const updatedBlocks = newDocument.map((block: any) => ({
         id: parseInt(block.id, 10),
         content: extractBlockContent(block),
         prompt: "",
         type: block.type === "ai-response" ? ("ai" as const) : ("user" as const),
+        schema:
+          block.type === "ai-response"
+            ? { ...aiResponseBlockSchema, props: { content: extractBlockContent(block) } }
+            : undefined,
       }))
 
       onBlocksChange(updatedBlocks)
       isInternalUpdate.current = false
-    }
+    }, 100),
+    [extractBlockContent, onBlocksChange]
+  )
 
-    // Add event listener for content changes
-    const unsubscribe = editor.onChange(handleUpdate)
-    return unsubscribe
-  }, [editor, extractBlockContent, onBlocksChange])
-
-  // Set up key handlers and typing detection
+  // Handle editor content changes
   useEffect(() => {
-    if (!editor?.domElement) return
+    if (!editor) return
 
-    const editorElement = editor.domElement
-
-    // Handle typing with debounce
-    const handleKeyUp = () => {
-      if (typingTimeout) clearTimeout(typingTimeout)
-
-      setTypingTimeout(
-        setTimeout(async () => {
-          if (!editor) return
-          const content = await editor.blocksToMarkdownLossy(editor.document)
-          if (content.trim()) {
-            onBlockSubmit(content)
-          }
-        }, 3000)
-      )
-    }
-
-    editorElement.addEventListener("keyup", handleKeyUp)
+    const unsubscribe = editor.onChange(() => {
+      debouncedUpdate(editor.document)
+    })
 
     return () => {
-      if (editor?.domElement) {
-        editor.domElement.removeEventListener("keyup", handleKeyUp)
-      }
-      if (typingTimeout) clearTimeout(typingTimeout)
+      debouncedUpdate.cancel()
+      unsubscribe?.()
     }
-  }, [editor, onBlockSubmit, onEnterPress, typingTimeout])
+  }, [editor, debouncedUpdate])
+
+  // Handle block submission with debouncing
+  const debouncedSubmit = useCallback(
+    debounce((content: string) => {
+      if (content.trim()) {
+        onBlockSubmit(content)
+      }
+    }, 3000),
+    [onBlockSubmit]
+  )
+
+  // Set up content change handler for AI responses
+  useEffect(() => {
+    if (!editor) return
+
+    const handleContentChange = () => {
+      const content = editor.document
+        .map((block) => extractBlockContent(block))
+        .join("\n")
+        .trim()
+
+      if (content) {
+        debouncedSubmit(content)
+      }
+    }
+
+    const unsubscribe = editor.onChange(handleContentChange)
+    return () => {
+      debouncedSubmit.cancel()
+      unsubscribe?.()
+    }
+  }, [editor, extractBlockContent, debouncedSubmit])
 
   return <BlockNoteView editor={editor} />
 }
 
-export default BlockNoteEditor
+export default React.memo(BlockNoteEditor)

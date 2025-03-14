@@ -14,6 +14,7 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
   const [interactions, setInteractions] = useState<any[]>([])
 
   const handleNewNote = useCallback((): void => {
+    console.log("handleNewNote")
     const newNote: Note = {
       id: Date.now(),
       title: "New Note",
@@ -86,6 +87,7 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
         const updatedBlocks = [...currentNote.blocks, newAIBlock]
 
         // Use functional updates to ensure we have the latest state
+        console.log("handleBlockSubmit : updating blocks")
         const updatedNote = { ...currentNote, blocks: updatedBlocks }
         setNotes((prevNotes) => prevNotes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
         setCurrentNote(updatedNote)
@@ -96,13 +98,39 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
     }
   }
 
-  const updateNoteBlocks = (newBlocks: Block[]) => {
-    if (currentNote) {
-      const updatedNote = { ...currentNote, blocks: newBlocks }
-      setNotes(notes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
-      setCurrentNote(updatedNote)
-    }
-  }
+  const updateNoteBlocks = useCallback(
+    (newBlocks: Block[]) => {
+      if (currentNote) {
+        // Create a map of existing blocks by ID for quick lookup
+        const existingBlocksMap = currentNote.blocks.reduce((map, block) => {
+          map[block.id] = block
+          return map
+        }, {} as Record<number, Block>)
+
+        // Preserve existing block properties when updating
+        const updatedBlocks = newBlocks.map((block) => {
+          const existingBlock = existingBlocksMap[block.id]
+          // Only update if content has changed
+          if (!existingBlock || existingBlock.content !== block.content) {
+            return {
+              ...existingBlock, // Keep existing properties
+              ...block, // Override with new properties
+            }
+          }
+          return existingBlock
+        })
+
+        // Only update state if blocks actually changed
+        const blocksChanged = JSON.stringify(updatedBlocks) !== JSON.stringify(currentNote.blocks)
+        if (blocksChanged) {
+          const updatedNote = { ...currentNote, blocks: updatedBlocks }
+          setNotes((prevNotes) => prevNotes.map((n) => (n.id === currentNote.id ? updatedNote : n)))
+          setCurrentNote(updatedNote)
+        }
+      }
+    },
+    [currentNote]
+  )
 
   const handleEnterPress = (blockId: number) => {
     const newBlock: Block = {
