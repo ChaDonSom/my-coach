@@ -19,7 +19,7 @@ interface BlockNoteEditorProps {
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
-    aiResponseBlock: aiResponseBlockSchema,
+    "ai-response": aiResponseBlockSchema, // Change from aiResponseBlock to ai-response
   },
 })
 
@@ -30,19 +30,24 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
   // Convert our app blocks to BlockNote blocks
   const convertToBlockNoteBlocks = useCallback((): typeof editor.document => {
     if (!blocks || !Array.isArray(blocks)) {
-      return [] // Return empty array if blocks is null or not an array
+      return []
     }
 
     return blocks
       .map((block) => {
-        if (!block) return null // Skip null/undefined blocks
+        if (!block) return null
 
         if (block.type === "ai") {
           return {
             id: String(block.id),
             type: "ai-response" as const,
-            props: { content: block.content || "", backgroundColor: "", textColor: "", textAlignment: "left" as const },
-            content: undefined, // No content for AI response block
+            props: {
+              content: block.content,
+              backgroundColor: "",
+              textColor: "",
+              textAlignment: "left" as const,
+            },
+            content: undefined,
             children: [],
           }
         }
@@ -55,7 +60,7 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
           children: [],
         }
       })
-      .filter((block): block is NonNullable<typeof block> => block !== null) // Type guard to filter out null values
+      .filter((block): block is NonNullable<typeof block> => block !== null)
   }, [blocks, editor])
 
   // Extract text content from BlockNote blocks
@@ -121,16 +126,23 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
         } as Block // Ensure type safety with explicit cast
       })
 
-      if (JSON.stringify(updatedBlocks) !== JSON.stringify(blocks)) {
+      const areBlocksEqual =
+        updatedBlocks.length === blocks.length &&
+        updatedBlocks.every((block, index) => {
+          const oldBlock = blocks[index]
+          return block?.id === oldBlock?.id && block?.content === oldBlock?.content && block?.type === oldBlock?.type
+        })
+
+      if (!areBlocksEqual) {
         onBlocksChange(updatedBlocks)
       }
     }
 
     // Add event listener for content changes
-    const unsubscribe = editor.onChange(handleUpdate)
+    editor.onChange(handleUpdate)
 
     return () => {
-      // No explicit unsubscribe method needed
+      // Cleanup handled by BlockNote internally
     }
   }, [blocks, editor, extractBlockContent, onBlocksChange])
 
@@ -162,19 +174,22 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ blocks, onBlocksChang
       if (typingTimeout) clearTimeout(typingTimeout)
 
       setTypingTimeout(
-        setTimeout(() => {
+        setTimeout(async () => {
           if (!editor) return
+          console.log("Typing detected")
 
-          const selection = editor.getSelection()
-          if (!selection || !selection.blocks || selection.blocks.length === 0) return
+          const textCursorPosition = editor.getTextCursorPosition()
+          console.log("selection :", textCursorPosition)
+          if (!textCursorPosition || !textCursorPosition.block) return
 
-          const blockId = selection.blocks[0]?.id
+          const blockId = textCursorPosition.block?.id
           if (!blockId) return
 
           const block = editor.getBlock(blockId)
+          console.log("block :", block)
           if (!block) return
 
-          const content = extractBlockContent(block)
+          const content = await editor.blocksToMarkdownLossy(editor.document)
           onBlockSubmit(content)
         }, 2000)
       )

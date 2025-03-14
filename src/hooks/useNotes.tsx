@@ -80,7 +80,7 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
           content: aiQuestion,
           prompt: "",
           type: "ai",
-          schema: aiResponseBlockSchema,
+          schema: { ...aiResponseBlockSchema, props: { content: aiQuestion } }, // Set content in props
         }
 
         // Insert the AI block after the last block
