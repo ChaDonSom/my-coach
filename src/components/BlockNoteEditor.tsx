@@ -25,10 +25,15 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
 
   // Handle block submission with debouncing
   const handleSubmit = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (!editor || !content.trim()) return
 
-      onBlockSubmit(content).then((aiResponse) => {
+      console.groupCollapsed("handleSubmit content :", content)
+      console.trace()
+      console.groupEnd()
+
+      try {
+        const aiResponse = await onBlockSubmit(content)
         // Insert AI response block after current block
         const blockId = editor.getTextCursorPosition().block.id
         editor.insertBlocks(
@@ -49,7 +54,10 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
 
         editor.setTextCursorPosition(editor.document.at(-1)?.id ?? editor.document[0]?.id, "end")
         editor.focus()
-      })
+      } catch (error) {
+        console.error("Error in handleSubmit:", error)
+        // Handle error (e.g., show notification)
+      }
     },
     [editor, onBlockSubmit]
   )
@@ -64,17 +72,35 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
   React.useEffect(() => {
     if (!editor) return
 
-    const submitEditorContentToAI = async () => {
-      const currentBlock = editor.getTextCursorPosition().block
-      if (currentBlock.type !== "ai-response") {
-        const blockContent = await editor.blocksToMarkdownLossy()
-        if (blockContent.length > 0 && debouncedFn.current) {
-          debouncedFn.current(blockContent)
+    const sendToAiIfNotAnAiUpdate = async () => {
+      // Check if either the latest block is an AI block, or the next-to-last block is an AI block and the last block is empty
+      if (shouldSendToAi()) {
+        const editorContent = await editor.blocksToMarkdownLossy()
+        if (editorContent.length > 0 && debouncedFn.current) {
+          debouncedFn.current(editorContent)
         }
       }
     }
 
-    const unsubscribe = editor.onChange(submitEditorContentToAI)
+    function shouldSendToAi() {
+      const latestBlock = editor.document.at(-1)
+      const secondLatestBlock = editor.document.at(-2)
+      const aiDidntJustRespond = !isAiBlock(latestBlock)
+      const aiDidntJustPutUserOnNewLine = !(isAiBlock(secondLatestBlock) && blockIsEmpty(latestBlock))
+      const userHasWrittenSomething = documentHasUserContent()
+      return aiDidntJustRespond && aiDidntJustPutUserOnNewLine && userHasWrittenSomething
+    }
+    function isAiBlock(block: any) {
+      return block && block.type === "ai-response"
+    }
+    function blockIsEmpty(block: any) {
+      return Array.isArray(block.content) && block.content.length === 0
+    }
+    function documentHasUserContent() {
+      return editor.document.some((block) => !isAiBlock(block) && !blockIsEmpty(block))
+    }
+
+    const unsubscribe = editor.onChange(sendToAiIfNotAnAiUpdate)
     return unsubscribe
   }, [editor, debouncedFn])
 
