@@ -1,6 +1,6 @@
 import React from "react"
 import { Card, CardContent, Typography, TextField, List, ListItem, ListItemText } from "@mui/material"
-import { ChatMessage, Link, Note, CoachChatProps } from "../types"
+import { CoachChatProps } from "../types"
 
 const CoachChat: React.FC<CoachChatProps> = ({
   chat,
@@ -67,7 +67,7 @@ const CoachChat: React.FC<CoachChatProps> = ({
             <Typography
               key={idx}
               sx={{ mt: 1, color: "#1976d2", cursor: "pointer" }}
-              onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b) => b.id === link.toId)) || null)}
+              onClick={() => setCurrentNote(notes.find((n) => n.blocks.some((b: any) => b.id === link.toId)) || null)}
             >
               {fromBlock?.content.slice(0, 20)} → {toBlock?.content.slice(0, 20)} ({(link.strength * 100).toFixed(1)}%)
             </Typography>

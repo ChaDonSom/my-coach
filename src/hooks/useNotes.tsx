@@ -1,10 +1,23 @@
 import { useState, useCallback } from "react"
-import { Note, Block, ChatMessage } from "../types"
+import { ChatMessage } from "../types"
 import aiResponseBlockSchema from "../components/aiResponseBlockSchema"
 import OpenAI from "openai"
 import { generateEmbedding, generateAIResponse } from "../services/openAIService"
 import { cosineSimilarity } from "../utils/similarity"
 
+type Block = {
+  id: number
+  content: string
+  prompt: string
+  type: "user" | "ai"
+  schema?: any
+  embedding?: number[]
+}
+type Note = {
+  id: number
+  title: string
+  blocks: Block[]
+}
 type SetChatArgArg = ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
 type SetChatArg = (chat: SetChatArgArg) => void
 export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatArg) => {
@@ -102,7 +115,7 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
     (newBlocks: Block[]) => {
       if (currentNote) {
         // Create a map of existing blocks by ID for quick lookup
-        const existingBlocksMap = currentNote.blocks.reduce((map, block) => {
+        const existingBlocksMap = currentNote.blocks.reduce((map: Record<number, Block>, block: Block) => {
           map[block.id] = block
           return map
         }, {} as Record<number, Block>)
@@ -141,7 +154,7 @@ export const useNotes = (openai: OpenAI, chat: ChatMessage[], setChat: SetChatAr
     }
 
     if (currentNote) {
-      const blockIndex = currentNote.blocks.findIndex((b) => b.id === blockId)
+      const blockIndex = currentNote.blocks.findIndex((b: any) => b.id === blockId)
       const updatedBlocks = [...currentNote.blocks]
       updatedBlocks.splice(blockIndex + 1, 0, newBlock)
       const updatedNote = { ...currentNote, blocks: updatedBlocks }

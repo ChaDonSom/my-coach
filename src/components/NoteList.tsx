@@ -1,12 +1,11 @@
 import React from "react"
 import { Accordion, AccordionSummary, AccordionDetails, Typography } from "@mui/material"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
-import { Block, Note } from "../types"
 
 interface NoteListProps {
-  notes: Note[]
+  notes: any[]
   showPrompts: boolean
-  setCurrentNote: (note: Note | null) => void
+  setCurrentNote: (note: any | null) => void
 }
 
 const NoteList: React.FC<NoteListProps> = ({ notes, showPrompts, setCurrentNote }) => {
@@ -18,7 +17,7 @@ const NoteList: React.FC<NoteListProps> = ({ notes, showPrompts, setCurrentNote 
             <Typography>{note.title}</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            {note.blocks.map((block) => (
+            {note.blocks.map((block: any) => (
               <Typography key={block.id}>
                 {showPrompts ? `${block.prompt} → ${block.content}` : block.content}
               </Typography>
