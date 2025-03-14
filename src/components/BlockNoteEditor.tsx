@@ -28,29 +28,27 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
     (content: string) => {
       if (!editor || !content.trim()) return
 
-      onBlockSubmit(content).then(() => {
+      onBlockSubmit(content).then((aiResponse) => {
         // Insert AI response block after current block
         const blockId = editor.getTextCursorPosition().block.id
         editor.insertBlocks(
           [
             {
               type: "ai-response" as const,
-              props: {},
+              props: {
+                content: aiResponse,
+                backgroundColor: "#f5f5f5",
+                textColor: "#000000",
+                textAlignment: "left",
+              },
             },
           ],
-          blockId
+          blockId,
+          "after"
         )
 
-        // Move cursor to new block after AI response
-        editor.insertBlocks(
-          [
-            {
-              type: "paragraph" as const,
-              props: {},
-            },
-          ],
-          editor.getTextCursorPosition().block.id
-        )
+        editor.setTextCursorPosition(editor.document.at(-1)?.id ?? editor.document[0]?.id, "end")
+        editor.focus()
       })
     },
     [editor, onBlockSubmit]
@@ -66,20 +64,17 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
   React.useEffect(() => {
     if (!editor) return
 
-    const handleContentChange = () => {
+    const submitEditorContentToAI = async () => {
       const currentBlock = editor.getTextCursorPosition().block
       if (currentBlock.type !== "ai-response") {
-        const blockContent = editor.getBlock(currentBlock.id)?.content
-        if (Array.isArray(blockContent) && blockContent.length > 0) {
-          const firstContent = blockContent[0] as { type: "text"; text: string }
-          if (firstContent.type === "text" && debouncedFn.current) {
-            debouncedFn.current(firstContent.text)
-          }
+        const blockContent = await editor.blocksToMarkdownLossy()
+        if (blockContent.length > 0 && debouncedFn.current) {
+          debouncedFn.current(blockContent)
         }
       }
     }
 
-    const unsubscribe = editor.onChange(handleContentChange)
+    const unsubscribe = editor.onChange(submitEditorContentToAI)
     return unsubscribe
   }, [editor, debouncedFn])
 
