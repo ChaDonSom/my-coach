@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react"
+import React, { useCallback, useRef, forwardRef, useImperativeHandle } from "react"
 import { useCreateBlockNote } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/core/style.css"
@@ -12,16 +12,19 @@ interface BlockNoteEditorProps {
   onBlockSubmit: (blockContent: string) => Promise<string>
 }
 
-const schema = BlockNoteSchema.create({
+export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     "ai-response": aiResponseBlockSchema,
   },
 })
 
-const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
+const BlockNoteEditor = forwardRef<{}, BlockNoteEditorProps>(({ onBlockSubmit }, ref) => {
   const editor = useCreateBlockNote({ schema })
   const debouncedFn = useRef<ReturnType<typeof debounce> | null>(null)
+
+  // Expose editor to parent component
+  useImperativeHandle(ref, () => editor)
 
   // Handle block submission with debouncing
   const handleSubmit = useCallback(
@@ -105,6 +108,6 @@ const BlockNoteEditor: React.FC<BlockNoteEditorProps> = ({ onBlockSubmit }) => {
   }, [editor, debouncedFn])
 
   return <BlockNoteView editor={editor} />
-}
+})
 
 export default React.memo(BlockNoteEditor)

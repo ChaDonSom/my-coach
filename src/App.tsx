@@ -1,14 +1,16 @@
 import React, { useEffect, useRef } from "react"
 import { Container, Grid, Alert, Typography } from "@mui/material"
-import BlockNoteEditor from "./components/BlockNoteEditor"
+import BlockNoteEditor, { schema } from "./components/BlockNoteEditor"
 import CoachChat from "./components/CoachChat"
 import MobileCoachChat from "./components/MobileCoachChat"
 import { createOpenAIClient, generateInitialQuestion, generateAIResponse } from "./services/openAIService"
 import { useAppStore } from "./store/appStore"
+import { BlockNoteEditor as BlockNoteEditorType } from "@blocknote/core"
 
 const App: React.FC = () => {
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false)
   const { chat, setOpenAI, setChat } = useAppStore()
+  const editorRef = useRef<BlockNoteEditorType<typeof schema & { [key: string]: any }>>(null)
 
   // Initialize OpenAI client
   useEffect(() => {
@@ -27,6 +29,26 @@ const App: React.FC = () => {
         const openai = createOpenAIClient()
         const aiQuestion = await generateInitialQuestion(openai)
         setChat([{ sender: "AI", text: aiQuestion }])
+
+        // Insert initial AI message into editor
+        if (editorRef.current) {
+          editorRef.current.insertBlocks(
+            [
+              {
+                type: "ai-response",
+                props: {
+                  content: aiQuestion,
+                  backgroundColor: "#f5f5f5",
+                  textColor: "#000000",
+                  textAlignment: "left",
+                },
+              },
+            ],
+            editorRef.current.document[0].id,
+            "before"
+          )
+          editorRef.current.focus()
+        }
       }
 
       await initQuestion()
@@ -54,7 +76,7 @@ const App: React.FC = () => {
       <Grid container spacing={2}>
         <Grid item xs={12} md={8}>
           <Typography variant="h6">Your Notes</Typography>
-          <BlockNoteEditor onBlockSubmit={handleBlockSubmit} />
+          <BlockNoteEditor ref={editorRef} onBlockSubmit={handleBlockSubmit} />
         </Grid>
 
         <Grid item md={4} sx={{ display: { xs: "none", md: "block" } }}>
